@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Perfil - VEED</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #007bff;
+            --dark-blue: #0056b3;
+            --red-accent: #dc3545;
+            --green-success: #28a745;
+            --orange-pending: #ffc107;
+            --text-dark: #333;
+            --text-light: #f8f9fa;
+            --bg-light: #f0f2f5;
+            --bg-card: #ffffff;
+            --border-color: #e0e0e0;
+            --shadow-light: rgba(0, 0, 0, 0.08);
+            --placeholder-gray: #ccc;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* Top Bar - Reutilizado */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: var(--primary-blue);
+            color: var(--text-light);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .top-bar .logo {
+            font-size: 1.8em;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-info .balance {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-right: 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        .user-info .avatar-container {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--placeholder-gray);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border: 2px solid var(--text-light);
+        }
+
+        .user-info .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-info .avatar-container i {
+            font-size: 1.5em;
+            color: #666;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            max-width: 800px;
+            margin: 20px auto 80px auto;
+        }
+
+        .section-header {
+            font-size: 1.6em;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 25px;
+            border-bottom: 2px solid var(--primary-blue);
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .profile-card {
+            background-color: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .avatar-upload-area {
+            margin-bottom: 25px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .profile-avatar.placeholder {
+            background-color: var(--placeholder-gray);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 4em;
+            color: #666;
+        }
+
+        .avatar-upload-icon {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background-color: var(--primary-blue);
+            color: white;
+            border-radius: 50%;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: background-color 0.3s ease;
+        }
+
+        .avatar-upload-icon:hover {
+            background-color: var(--dark-blue);
+        }
+
+        #avatarInput {
+            display: none;
+        }
+
+        .profile-info {
+            text-align: left;
+            margin-top: 20px;
+        }
+
+        .profile-info .form-group {
+            margin-bottom: 18px;
+        }
+
+        .profile-info label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .profile-info input[type="text"],
+        .profile-info input[type="email"] {
+            width: calc(100% - 20px);
+            padding: 12px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            box-sizing: border-box;
+            background-color: var(--bg-light); /* Read-only appearance */
+        }
+
+        .profile-info input:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+            outline: none;
+        }
+
+        .profile-info input[readonly] {
+            background-color: #e9ecef;
+            cursor: not-allowed;
+        }
+
+        .btn-update-profile {
+            background-color: var(--primary-blue);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 15px;
+        }
+
+        .btn-update-profile:hover {
+            background-color: var(--dark-blue);
+            transform: translateY(-2px);
+        }
+
+        .btn-update-profile:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: slideInMessage 0.5s forwards;
+            display: none;
+        }
+
+        @keyframes slideInMessage {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Seção Histórico de Vídeos Assistidos */
+        .video-history-section {
+            background-color: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+        }
+
+        .video-history-section h3 {
+            font-size: 1.4em;
+            color: var(--dark-blue);
+            margin-bottom: 20px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .video-history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .video-history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px dashed var(--border-color);
+        }
+
+        .video-history-item:last-child {
+            border-bottom: none;
+        }
+
+        .video-history-info {
+            text-align: left;
+            flex-grow: 1;
+        }
+
+        .video-history-info .title {
+            font-weight: 600;
+            font-size: 1.05em;
+            color: var(--text-dark);
+        }
+
+        .video-history-info .date {
+            font-size: 0.85em;
+            color: #777;
+        }
+
+        .video-history-reward {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: var(--green-success);
+            margin-left: 15px;
+        }
+        .no-video-history {
+            text-align: center;
+            color: #777;
+            padding: 30px;
+        }
+
+
+        /* Bottom Navigation Bar - Reutilizado */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--bg-card);
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            z-index: 1000;
+        }
+
+        .bottom-bar a {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #888;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: color 0.3s ease;
+            padding: 5px 0;
+            min-width: 60px;
+        }
+
+        .bottom-bar a.active {
+            color: var(--primary-blue);
+        }
+
+        .bottom-bar a i {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .top-bar {
+                padding: 10px 15px;
+            }
+            .top-bar .logo {
+                font-size: 1.5em;
+            }
+            .user-info .balance {
+                font-size: 1em;
+                margin-right: 10px;
+            }
+            .user-info .avatar-container {
+                width: 35px;
+                height: 35px;
+            }
+            .main-content {
+                padding: 15px;
+                margin-top: 10px;
+            }
+            .section-header {
+                font-size: 1.4em;
+                margin-bottom: 20px;
+            }
+            .profile-card {
+                padding: 20px;
+            }
+            .profile-avatar {
+                width: 100px;
+                height: 100px;
+            }
+            .avatar-upload-icon {
+                font-size: 1em;
+                padding: 6px;
+            }
+            .profile-info input {
+                font-size: 0.9em;
+                padding: 10px;
+            }
+            .btn-update-profile {
+                padding: 10px 20px;
+                font-size: 0.95em;
+            }
+            .video-history-item {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .video-history-reward {
+                margin-left: 0;
+                margin-top: 5px;
+            }
+            .bottom-bar a {
+                font-size: 0.75em;
+                min-width: unset;
+            }
+            .bottom-bar a i {
+                font-size: 1.3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="logo">VEED</div>
+        <div class="user-info">
+            <span class="balance" id="userBalance">0.00 MT</span>
+            <div class="avatar-container" id="userAvatarContainer">
+                <img id="userAvatar" src="" alt="Avatar" style="display: none;">
+                <i id="defaultAvatarIcon" class="fas fa-user-circle"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <h2 class="section-header">Meu Perfil</h2>
+
+        <div class="profile-card">
+            <h3>Informações da Conta</h3>
+            <div class="avatar-upload-area">
+                <img id="profileAvatar" class="profile-avatar" src="" alt="Avatar do Usuário">
+                <label for="avatarInput" class="avatar-upload-icon">
+                    <i class="fas fa-camera"></i>
+                </label>
+                <input type="file" id="avatarInput" accept="image/*">
+            </div>
+            
+            <form id="profileForm" class="profile-info">
+                <div class="form-group">
+                    <label for="profileName">Nome Completo:</label>
+                    <input type="text" id="profileName" name="nome" required>
+                </div>
+                <div class="form-group">
+                    <label for="profileEmail">Email:</label>
+                    <input type="email" id="profileEmail" name="email" readonly> </div>
+                <div class="form-group">
+                    <label for="profileBalance">Saldo Atual:</label>
+                    <input type="text" id="profileBalance" name="saldo" readonly>
+                </div>
+                <button type="submit" class="btn-update-profile">Atualizar Perfil</button>
+            </form>
+            <div id="profileMessage" class="message"></div>
+        </div>
+
+        <h2 class="section-header">Histórico de Vídeos Assistidos</h2>
+        <div class="video-history-section">
+            <h3>Vídeos Que Você Já Ganhou Recompensa</h3>
+            <ul id="videoHistoryList" class="video-history-list">
+                <p id="noVideoHistoryMessage" class="no-video-history" style="display: none;">Você ainda não assistiu nenhum vídeo.</p>
+            </ul>
+        </div>
+    </div>
+
+    <div class="bottom-bar">
+        <a href="/dashboard">
+            <i class="fas fa-home"></i>
+            <span>Início</span>
+        </a>
+        <a href="/wallet">
+            <i class="fas fa-wallet"></i>
+            <span>Carteira</span>
+        </a>
+        <a href="/referrals">
+            <i class="fas fa-users"></i>
+            <span>Indicar</span>
+        </a>
+        <a href="/profile" class="active">
+            <i class="fas fa-user-circle"></i>
+            <span>Perfil</span>
+        </a>
+        <a href="/settings">
+            <i class="fas fa-cog"></i>
+            <span>Config.</span>
+        </a>
+    </div>
+
+    <script>
+        const backendUrl = '/api'; // Backend servido pelo mesmo domínio
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userToken = localStorage.getItem('userToken');
+            const userData = JSON.parse(localStorage.getItem('userData'));
+
+            if (!userToken || !userData) {
+                window.location.href = '/login';
+                return;
+            }
+
+            // Elementos da Top Bar
+            const userBalanceElement = document.getElementById('userBalance');
+            const userAvatarContainer = document.getElementById('userAvatarContainer');
+            const userAvatarImg = document.getElementById('userAvatar');
+            const defaultAvatarIcon = document.getElementById('defaultAvatarIcon');
+
+            // Elementos do Perfil
+            const profileAvatarImg = document.getElementById('profileAvatar');
+            const avatarInput = document.getElementById('avatarInput');
+            const profileForm = document.getElementById('profileForm');
+            const profileNameInput = document.getElementById('profileName');
+            const profileEmailInput = document.getElementById('profileEmail');
+            const profileBalanceInput = document.getElementById('profileBalance');
+            const updateProfileBtn = document.querySelector('.btn-update-profile');
+            const profileMessage = document.getElementById('profileMessage');
+
+            // Elementos do Histórico de Vídeos
+            const videoHistoryList = document.getElementById('videoHistoryList');
+            const noVideoHistoryMessage = document.getElementById('noVideoHistoryMessage');
+
+            // Variável para armazenar a imagem do avatar como Base64
+            let selectedAvatarBase64 = null;
+
+
+            // Função para mostrar mensagens
+            function showMessage(type, text, targetElement) {
+                targetElement.textContent = text;
+                targetElement.className = `message ${type}`;
+                targetElement.style.display = 'block';
+                setTimeout(() => {
+                    targetElement.style.display = 'none';
+                }, 5000);
+            }
+
+            // Função para carregar dados do perfil
+            async function loadProfileData() {
+                try {
+                    const response = await fetch(`${backendUrl}/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${userToken}`
+                        }
+                    });
+
+                    if (response.status === 401) {
+                        localStorage.clear();
+                        window.location.href = '/login';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao carregar dados do perfil.');
+                    }
+
+                    const user = await response.json();
+
+                    // Atualizar localStorage com os dados mais recentes do usuário
+                    localStorage.setItem('userData', JSON.stringify({
+                        _id: user._id,
+                        nome: user.nome,
+                        email: user.email,
+                        isAdmin: user.isAdmin,
+                        saldo: user.saldo,
+                        avatar: user.avatar
+                    }));
+
+                    // Atualizar Top Bar
+                    userBalanceElement.textContent = `${user.saldo.toFixed(2)} MT`;
+                    if (user.avatar) {
+                        userAvatarImg.src = user.avatar;
+                        userAvatarImg.style.display = 'block';
+                        defaultAvatarIcon.style.display = 'none';
+                    } else {
+                        userAvatarImg.style.display = 'none';
+                        defaultAvatarIcon.style.display = 'block';
+                    }
+
+                    // Atualizar informações do perfil
+                    profileNameInput.value = user.nome;
+                    profileEmailInput.value = user.email;
+                    profileBalanceInput.value = `${user.saldo.toFixed(2)} MT`;
+
+                    // Atualizar avatar do perfil e definir placeholder se não houver
+                    if (user.avatar) {
+                        profileAvatarImg.src = user.avatar;
+                        profileAvatarImg.classList.remove('placeholder');
+                        profileAvatarImg.style.display = 'block'; // Garante que a imagem é mostrada
+                        profileAvatarImg.alt = 'Avatar do Usuário';
+                    } else {
+                        // Se não houver avatar, mostra o ícone de placeholder
+                        profileAvatarImg.src = ''; // Limpa a src
+                        profileAvatarImg.classList.add('placeholder');
+                        profileAvatarImg.innerHTML = '<i class="fas fa-user"></i>'; // Adiciona ícone
+                        profileAvatarImg.style.display = 'flex'; // Para centralizar o ícone
+                        profileAvatarImg.alt = 'Avatar Padrão';
+                    }
+
+                    // Carregar histórico de vídeos assistidos
+                    loadVideoHistory(user.historicoVideos);
+
+                } catch (error) {
+                    console.error('Erro ao carregar dados do perfil:', error);
+                    showMessage('error', 'Não foi possível carregar o perfil. Tente novamente.', profileMessage);
+                }
+            }
+
+            // Pré-visualização e conversão de avatar para Base64
+            avatarInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        profileAvatarImg.src = e.target.result;
+                        profileAvatarImg.classList.remove('placeholder'); // Remove classe placeholder
+                        profileAvatarImg.innerHTML = ''; // Remove ícone de placeholder
+                        profileAvatarImg.style.display = 'block'; // Garante que a imagem é mostrada
+                        selectedAvatarBase64 = e.target.result; // Armazena a imagem como Base64
+                    };
+                    reader.readAsDataURL(file); // Converte para Base64
+                } else {
+                    // Se nenhum arquivo selecionado, volta ao estado anterior
+                    selectedAvatarBase64 = null;
+                    loadProfileData(); // Recarrega os dados para resetar o avatar
+                }
+            });
+
+
+            // Atualizar perfil
+            profileForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const nome = profileNameInput.value;
+                // Email e saldo são apenas para exibição, não são enviados na atualização de perfil aqui.
+                // A alteração de email tem uma rota separada.
+
+                updateProfileBtn.disabled = true;
+                updateProfileBtn.textContent = 'Atualizando...';
+                profileMessage.style.display = 'none';
+
+                try {
+                    const body = { nome };
+                    if (selectedAvatarBase64) {
+                        body.avatar = selectedAvatarBase64;
+                    }
+
+                    const response = await fetch(`${backendUrl}/me`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify(body)
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        showMessage('success', data.message || 'Perfil atualizado com sucesso!', profileMessage);
+                        // Atualizar localStorage e UI com os novos dados
+                        localStorage.setItem('userData', JSON.stringify({
+                            ...userData,
+                            nome: data.nome,
+                            avatar: data.avatar // Atualiza o avatar também no localStorage
+                        }));
+                        // Força a atualização do avatar na top bar
+                        userAvatarImg.src = data.avatar;
+                        userAvatarImg.style.display = 'block';
+                        defaultAvatarIcon.style.display = 'none';
+
+                        selectedAvatarBase64 = null; // Limpa o avatar selecionado após o upload
+                    } else {
+                        showMessage('error', data.message || 'Erro ao atualizar perfil. Tente novamente.', profileMessage);
+                    }
+                } catch (error) {
+                    console.error('Erro na requisição de atualização de perfil:', error);
+                    showMessage('error', 'Erro de conexão. Tente novamente mais tarde.', profileMessage);
+                } finally {
+                    updateProfileBtn.disabled = false;
+                    updateProfileBtn.textContent = 'Atualizar Perfil';
+                }
+            });
+
+            // Carregar Histórico de Vídeos Assistidos
+            async function loadVideoHistory(historicoVideos) {
+                videoHistoryList.innerHTML = ''; // Limpa a lista
+                if (!historicoVideos || historicoVideos.length === 0) {
+                    noVideoHistoryMessage.style.display = 'block';
+                    return;
+                }
+                noVideoHistoryMessage.style.display = 'none';
+
+                // Para cada item do histórico, buscar o título do vídeo
+                // Idealmente, a rota /me já populasse videoId com o objeto Video
+                // Mas, se não, faremos aqui (pode ser ineficiente para muitos vídeos)
+                // Assumindo que user.historicoVideos já traz o título do vídeo se o populate estiver funcionando no backend
+                // (no controllers.js, a rota /me não popula o historicoVideos, então essa parte precisaria de um ajuste no backend
+                // ou uma nova rota para obter o histórico de vídeos com detalhes)
+
+                // POR SIMPLICIDADE E PARA FAZER FUNCIONAR NO FRONT, VOU USAR APENAS AS INFORMAÇÕES BÁSICAS DO HISTORICO
+                // QUE O BACKEND JÁ RETORNA SEM POPULATE NO VIDEO ID.
+                // Se o seu backend estiver populando 'historicoVideos.videoId' com o objeto Video completo,
+                // você pode acessar 'item.videoId.titulo' diretamente.
+                // Se não, você só terá o videoId, dataAssistido, recompensaGanhou.
+
+                // Para o exemplo, vamos assumir que o nome do vídeo não vem populado para manter a consistência com o `controllers.js` atual.
+                // O `historicoVideos` no modelo User apenas tem o `videoId`.
+                // Poderíamos buscar os títulos dos vídeos, mas para evitar muitas requisições, vamos mostrar o ID do vídeo por enquanto
+                // ou um placeholder, e a recompensa.
+
+                // Correção: No `models.js` o `historicoVideos` tem `videoId` ref `Video`.
+                // Mas no `controllers.js` a rota `/me` não faz `.populate('historicoVideos.videoId')`.
+                // Para exibir o título, você teria que adicionar o populate no `getProfile` do `controllers.js`.
+                // Por hora, vou adicionar um fetch para buscar o título, mas o ideal é o backend já enviar isso.
+
+                const videoTitlesMap = new Map();
+                for (const item of historicoVideos) {
+                    if (!videoTitlesMap.has(item.videoId)) {
+                        try {
+                            const videoResp = await fetch(`${backendUrl}/admin/videos/${item.videoId}`, { // Rota de admin, mas sem autorização para este fetch
+                                headers: { 'Authorization': `Bearer ${userToken}` }
+                            });
+                            if (videoResp.ok) {
+                                const videoData = await videoResp.json();
+                                videoTitlesMap.set(item.videoId, videoData.titulo);
+                            } else {
+                                videoTitlesMap.set(item.videoId, 'Título Desconhecido');
+                            }
+                        } catch (error) {
+                            console.error('Erro ao buscar título do vídeo:', error);
+                            videoTitlesMap.set(item.videoId, 'Erro ao Carregar Título');
+                        }
+                    }
+                }
+
+
+                historicoVideos.sort((a, b) => new Date(b.dataAssistido) - new Date(a.dataAssistido)); // Mais recentes primeiro
+
+                historicoVideos.forEach(item => {
+                    const listItem = document.createElement('li');
+                    listItem.className = 'video-history-item';
+                    const videoTitle = videoTitlesMap.get(item.videoId) || `Vídeo ID: ${item.videoId.slice(0, 8)}...`;
+
+                    listItem.innerHTML = `
+                        <div class="video-history-info">
+                            <div class="title">${videoTitle}</div>
+                            <div class="date">Assistido em: ${new Date(item.dataAssistido).toLocaleString('pt-MZ', { dateStyle: 'short', timeStyle: 'short' })}</div>
+                        </div>
+                        <div class="video-history-reward">
+                            +${item.recompensaGanhou.toFixed(2)} MT
+                        </div>
+                    `;
+                    videoHistoryList.appendChild(listItem);
+                });
+            }
+
+
+            // Carregar dados iniciais do perfil
+            loadProfileData();
+        });
+    </script>
+</body>
+</html>

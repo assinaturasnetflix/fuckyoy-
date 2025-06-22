@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configurações - VEED</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #007bff;
+            --dark-blue: #0056b3;
+            --red-accent: #dc3545;
+            --green-success: #28a745;
+            --text-dark: #333;
+            --text-light: #f8f9fa;
+            --bg-light: #f0f2f5;
+            --bg-card: #ffffff;
+            --border-color: #e0e0e0;
+            --shadow-light: rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* Top Bar - Reutilizado */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: var(--primary-blue);
+            color: var(--text-light);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .top-bar .logo {
+            font-size: 1.8em;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-info .balance {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-right: 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        .user-info .avatar-container {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #ccc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border: 2px solid var(--text-light);
+        }
+
+        .user-info .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-info .avatar-container i {
+            font-size: 1.5em;
+            color: #666;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            max-width: 800px;
+            margin: 20px auto 80px auto;
+        }
+
+        .section-header {
+            font-size: 1.6em;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 25px;
+            border-bottom: 2px solid var(--primary-blue);
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .settings-card {
+            background-color: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .settings-card h3 {
+            font-size: 1.4em;
+            color: var(--dark-blue);
+            margin-bottom: 25px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .form-group input[type="password"],
+        .form-group input[type="email"] {
+            width: calc(100% - 20px);
+            padding: 12px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .form-group input:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+            outline: none;
+        }
+
+        .btn-submit {
+            background-color: var(--primary-blue);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 15px;
+        }
+
+        .btn-submit:hover {
+            background-color: var(--dark-blue);
+            transform: translateY(-2px);
+        }
+
+        .btn-submit:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        /* Message Box */
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: slideInMessage 0.5s forwards;
+            display: none;
+        }
+
+        @keyframes slideInMessage {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+         .message.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Logout Button */
+        .logout-section {
+            background-color: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+            text-align: center;
+        }
+
+        .logout-section h3 {
+            font-size: 1.4em;
+            color: var(--dark-blue);
+            margin-bottom: 20px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .btn-logout {
+            background-color: var(--red-accent);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 15px;
+        }
+
+        .btn-logout:hover {
+            background-color: #c82333;
+            transform: translateY(-2px);
+        }
+
+        /* Bottom Navigation Bar - Reutilizado */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--bg-card);
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            z-index: 1000;
+        }
+
+        .bottom-bar a {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #888;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: color 0.3s ease;
+            padding: 5px 0;
+            min-width: 60px;
+        }
+
+        .bottom-bar a.active {
+            color: var(--primary-blue);
+        }
+
+        .bottom-bar a i {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .top-bar {
+                padding: 10px 15px;
+            }
+            .top-bar .logo {
+                font-size: 1.5em;
+            }
+            .user-info .balance {
+                font-size: 1em;
+                margin-right: 10px;
+            }
+            .user-info .avatar-container {
+                width: 35px;
+                height: 35px;
+            }
+            .main-content {
+                padding: 15px;
+                margin-top: 10px;
+            }
+            .section-header {
+                font-size: 1.4em;
+                margin-bottom: 20px;
+            }
+            .settings-card, .logout-section {
+                padding: 20px;
+            }
+            .settings-card h3, .logout-section h3 {
+                font-size: 1.2em;
+            }
+            .form-group input {
+                font-size: 0.9em;
+                padding: 10px;
+            }
+            .btn-submit, .btn-logout {
+                padding: 10px 20px;
+                font-size: 0.95em;
+            }
+            .bottom-bar a {
+                font-size: 0.75em;
+                min-width: unset;
+            }
+            .bottom-bar a i {
+                font-size: 1.3em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="logo">VEED</div>
+        <div class="user-info">
+            <span class="balance" id="userBalance">0.00 MT</span>
+            <div class="avatar-container" id="userAvatarContainer">
+                <img id="userAvatar" src="" alt="Avatar" style="display: none;">
+                <i id="defaultAvatarIcon" class="fas fa-user-circle"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <h2 class="section-header">Configurações da Conta</h2>
+
+        <div class="settings-card">
+            <h3>Alterar Senha</h3>
+            <form id="changePasswordForm">
+                <div class="form-group">
+                    <label for="currentPassword">Senha Atual:</label>
+                    <input type="password" id="currentPassword" required autocomplete="current-password">
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">Nova Senha:</label>
+                    <input type="password" id="newPassword" required autocomplete="new-password">
+                </div>
+                <div class="form-group">
+                    <label for="confirmNewPassword">Confirmar Nova Senha:</label>
+                    <input type="password" id="confirmNewPassword" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="btn-submit" id="changePasswordBtn">Alterar Senha</button>
+            </form>
+            <div id="passwordMessage" class="message"></div>
+        </div>
+
+        <div class="settings-card">
+            <h3>Alterar Email</h3>
+            <form id="changeEmailForm">
+                <div class="form-group">
+                    <label for="currentEmailDisplay">Email Atual:</label>
+                    <input type="email" id="currentEmailDisplay" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="newEmail">Novo Email:</label>
+                    <input type="email" id="newEmail" required autocomplete="email">
+                </div>
+                <button type="submit" class="btn-submit" id="changeEmailBtn">Alterar Email</button>
+            </form>
+            <div id="emailMessage" class="message"></div>
+            <p style="font-size: 0.9em; color: #777; margin-top: 15px;">Ao alterar o email, você precisará verificá-lo novamente para ativar sua conta.</p>
+        </div>
+
+        <div class="logout-section">
+            <h3>Sair da Conta</h3>
+            <p>Clique no botão abaixo para desconectar sua sessão.</p>
+            <button type="button" class="btn-logout" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Sair</button>
+        </div>
+    </div>
+
+    <div class="bottom-bar">
+        <a href="/dashboard">
+            <i class="fas fa-home"></i>
+            <span>Início</span>
+        </a>
+        <a href="/wallet">
+            <i class="fas fa-wallet"></i>
+            <span>Carteira</span>
+        </a>
+        <a href="/referrals">
+            <i class="fas fa-users"></i>
+            <span>Indicar</span>
+        </a>
+        <a href="/profile">
+            <i class="fas fa-user-circle"></i>
+            <span>Perfil</span>
+        </a>
+        <a href="/settings" class="active">
+            <i class="fas fa-cog"></i>
+            <span>Config.</span>
+        </a>
+    </div>
+
+    <script>
+        const backendUrl = '/api'; // Backend servido pelo mesmo domínio
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userToken = localStorage.getItem('userToken');
+            const userData = JSON.parse(localStorage.getItem('userData'));
+
+            if (!userToken || !userData) {
+                window.location.href = '/login';
+                return;
+            }
+
+            // Elementos da Top Bar
+            const userBalanceElement = document.getElementById('userBalance');
+            const userAvatarImg = document.getElementById('userAvatar');
+            const defaultAvatarIcon = document.getElementById('defaultAvatarIcon');
+
+            // Elementos do formulário de Alterar Senha
+            const changePasswordForm = document.getElementById('changePasswordForm');
+            const currentPasswordInput = document.getElementById('currentPassword');
+            const newPasswordInput = document.getElementById('newPassword');
+            const confirmNewPasswordInput = document.getElementById('confirmNewPassword');
+            const changePasswordBtn = document.getElementById('changePasswordBtn');
+            const passwordMessage = document.getElementById('passwordMessage');
+
+            // Elementos do formulário de Alterar Email
+            const changeEmailForm = document.getElementById('changeEmailForm');
+            const currentEmailDisplay = document.getElementById('currentEmailDisplay');
+            const newEmailInput = document.getElementById('newEmail');
+            const changeEmailBtn = document.getElementById('changeEmailBtn');
+            const emailMessage = document.getElementById('emailMessage');
+
+            // Botão de Logout
+            const logoutBtn = document.getElementById('logoutBtn');
+
+
+            // Função para mostrar mensagens
+            function showMessage(type, text, targetElement) {
+                targetElement.textContent = text;
+                targetElement.className = `message ${type}`;
+                targetElement.style.display = 'block';
+                setTimeout(() => {
+                    targetElement.style.display = 'none';
+                }, 5000);
+            }
+
+            // Função para carregar dados do usuário (principalmente email e saldo para top bar)
+            async function loadUserData() {
+                try {
+                    const response = await fetch(`${backendUrl}/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${userToken}`
+                        }
+                    });
+
+                    if (response.status === 401) {
+                        localStorage.clear();
+                        window.location.href = '/login';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao carregar dados do usuário.');
+                    }
+
+                    const user = await response.json();
+
+                    // Atualizar localStorage com os dados mais recentes do usuário
+                    localStorage.setItem('userData', JSON.stringify({
+                        _id: user._id,
+                        nome: user.nome,
+                        email: user.email,
+                        isAdmin: user.isAdmin,
+                        saldo: user.saldo,
+                        avatar: user.avatar
+                    }));
+
+                    // Atualizar Top Bar
+                    userBalanceElement.textContent = `${user.saldo.toFixed(2)} MT`;
+                    if (user.avatar) {
+                        userAvatarImg.src = user.avatar;
+                        userAvatarImg.style.display = 'block';
+                        defaultAvatarIcon.style.display = 'none';
+                    } else {
+                        userAvatarImg.style.display = 'none';
+                        defaultAvatarIcon.style.display = 'block';
+                    }
+
+                    // Preencher email atual
+                    currentEmailDisplay.value = user.email;
+
+                } catch (error) {
+                    console.error('Erro ao carregar dados do usuário para configurações:', error);
+                    // Não mostra erro na tela, apenas no console, pois não é crítico para a funcionalidade principal da página de configurações
+                }
+            }
+
+
+            // Lógica de Alterar Senha
+            changePasswordForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const currentPassword = currentPasswordInput.value;
+                const newPassword = newPasswordInput.value;
+                const confirmNewPassword = confirmNewPasswordInput.value;
+
+                if (newPassword !== confirmNewPassword) {
+                    showMessage('error', 'A nova senha e a confirmação não coincidem.', passwordMessage);
+                    return;
+                }
+                if (newPassword.length < 6) { // Exemplo de validação de senha
+                    showMessage('error', 'A nova senha deve ter no mínimo 6 caracteres.', passwordMessage);
+                    return;
+                }
+
+                changePasswordBtn.disabled = true;
+                changePasswordBtn.textContent = 'Alterando...';
+                passwordMessage.style.display = 'none';
+
+                try {
+                    const response = await fetch(`${backendUrl}/change-password`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify({ currentPassword, newPassword })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        showMessage('success', data.message || 'Senha alterada com sucesso!', passwordMessage);
+                        changePasswordForm.reset();
+                    } else {
+                        showMessage('error', data.message || 'Erro ao alterar senha. Verifique sua senha atual.', passwordMessage);
+                    }
+                } catch (error) {
+                    console.error('Erro na requisição de alteração de senha:', error);
+                    showMessage('error', 'Erro de conexão. Tente novamente mais tarde.', passwordMessage);
+                } finally {
+                    changePasswordBtn.disabled = false;
+                    changePasswordBtn.textContent = 'Alterar Senha';
+                }
+            });
+
+
+            // Lógica de Alterar Email
+            changeEmailForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+
+                const newEmail = newEmailInput.value;
+
+                // Validação de email básica
+                if (!newEmail || !newEmail.includes('@') || !newEmail.includes('.')) {
+                    showMessage('error', 'Por favor, insira um email válido.', emailMessage);
+                    return;
+                }
+                if (newEmail === currentEmailDisplay.value) {
+                    showMessage('error', 'O novo email não pode ser igual ao email atual.', emailMessage);
+                    return;
+                }
+
+                changeEmailBtn.disabled = true;
+                changeEmailBtn.textContent = 'Alterando...';
+                emailMessage.style.display = 'none';
+
+                try {
+                    const response = await fetch(`${backendUrl}/change-email`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${userToken}`
+                        },
+                        body: JSON.stringify({ newEmail })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        showMessage('success', data.message || 'Email alterado com sucesso! Verifique seu novo email para reativar a conta.', emailMessage);
+                        // Redireciona para o login para forçar a re-autenticação após a verificação do novo email
+                        localStorage.clear();
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 3000);
+                    } else {
+                        showMessage('error', data.message || 'Erro ao alterar email.', emailMessage);
+                    }
+                } catch (error) {
+                    console.error('Erro na requisição de alteração de email:', error);
+                    showMessage('error', 'Erro de conexão. Tente novamente mais tarde.', emailMessage);
+                } finally {
+                    changeEmailBtn.disabled = false;
+                    changeEmailBtn.textContent = 'Alterar Email';
+                }
+            });
+
+
+            // Lógica de Logout
+            logoutBtn.addEventListener('click', () => {
+                localStorage.clear(); // Limpa todos os dados do localStorage (token, userData)
+                window.location.href = '/login'; // Redireciona para a página de login
+            });
+
+            // Carregar dados iniciais do usuário
+            loadUserData();
+        });
+    </script>
+</body>
+</html>

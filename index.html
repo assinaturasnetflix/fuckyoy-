@@ -1,15 +1,530 @@
-<!doctype html>
-<html>
-    <head> 
-        <meta charset="UTF-8"> 
-        <meta name="viewport" id="viewport" content="width=device-width, initial-scale=1"> 
-        <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
-        <title>veed</title>
-    </head> 
-    <body> 
-        <h1>veed</h1>
-        <div>
-            Hello World! 
-        </div>  
-    </body>
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bem-vindo ao VEED - Ganhe Assistindo Vídeos!</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #007bff;
+            --dark-blue: #0056b3;
+            --red-accent: #dc3545;
+            --green-success: #28a745;
+            --text-dark: #333;
+            --text-light: #f8f9fa;
+            --bg-light: #f0f2f5;
+            --bg-card: #ffffff;
+            --border-color: #e0e0e0;
+            --shadow-light: rgba(0, 0, 0, 0.08);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
+            line-height: 1.6;
+        }
+
+        /* Header / Navbar */
+        .main-header {
+            background-color: var(--primary-blue);
+            color: var(--text-light);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .main-header .logo {
+            font-size: 2.2em;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .main-header .logo:hover {
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .nav-links a {
+            color: var(--text-light);
+            text-decoration: none;
+            font-weight: 600;
+            margin-left: 25px;
+            font-size: 1.05em;
+            transition: color 0.3s ease, transform 0.2s ease;
+            position: relative;
+        }
+
+        .nav-links a:hover {
+            color: #ffcc00; /* Um amarelo vibrante para hover */
+            transform: translateY(-2px);
+        }
+        
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 2px;
+            bottom: -5px;
+            left: 0;
+            background-color: #ffcc00;
+            transition: width 0.3s ease-out;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+
+        /* Hero Section */
+        .hero-section {
+            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('https://res.cloudinary.com/dje6f5k5u/image/upload/v1719076800/hero-background_a9r89a.jpg') no-repeat center center/cover;
+            color: var(--text-light);
+            padding: 100px 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            flex-grow: 1; /* Permite que ocupe o espaço restante */
+            min-height: 60vh;
+        }
+
+        .hero-section h1 {
+            font-size: 3.8em;
+            font-weight: 800;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .hero-section p {
+            font-size: 1.4em;
+            max-width: 800px;
+            margin-bottom: 40px;
+            font-weight: 300;
+            line-height: 1.5;
+        }
+
+        .hero-buttons .btn {
+            background-color: var(--red-accent);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            margin: 0 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-buttons .btn-primary {
+            background-color: var(--primary-blue);
+        }
+
+        .hero-buttons .btn:hover {
+            background-color: var(--dark-blue); /* Ou um tom mais escuro do vermelho para o principal */
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        .hero-buttons .btn-primary:hover {
+            background-color: var(--dark-blue);
+        }
+
+
+        /* Features Section */
+        .features-section {
+            padding: 60px 20px;
+            text-align: center;
+            background-color: var(--bg-card);
+            box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .features-section h2 {
+            font-size: 2.8em;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 50px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .feature-item {
+            background-color: var(--bg-light);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+            text-align: left;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .feature-item:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .feature-item i {
+            font-size: 2.5em;
+            color: var(--primary-blue);
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .feature-item h3 {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--dark-blue);
+            margin-bottom: 15px;
+        }
+
+        .feature-item p {
+            font-size: 1em;
+            color: #555;
+        }
+
+        /* How It Works Section */
+        .how-it-works-section {
+            padding: 60px 20px;
+            text-align: center;
+            background-color: var(--bg-light);
+        }
+
+        .how-it-works-section h2 {
+            font-size: 2.8em;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 50px;
+        }
+
+        .steps-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .step-item {
+            background-color: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+            width: calc(33% - 40px); /* 3 items per row on large screens */
+            min-width: 280px; /* Minimum width for responsiveness */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .step-item:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .step-item .step-number {
+            background-color: var(--red-accent);
+            color: white;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.8em;
+            font-weight: 700;
+            margin-bottom: 20px;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .step-item h3 {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--dark-blue);
+            margin-bottom: 15px;
+        }
+
+        .step-item p {
+            font-size: 1em;
+            color: #555;
+            text-align: center;
+        }
+
+        /* Call to Action Section */
+        .cta-section {
+            background: linear-gradient(135deg, var(--primary-blue), var(--dark-blue));
+            color: var(--text-light);
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            font-size: 3em;
+            font-weight: 800;
+            margin-bottom: 25px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        .cta-section p {
+            font-size: 1.3em;
+            max-width: 700px;
+            margin: 0 auto 40px auto;
+            font-weight: 300;
+        }
+
+        .cta-section .btn {
+            background-color: var(--red-accent);
+            color: white;
+            padding: 18px 40px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.4em;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .cta-section .btn:hover {
+            background-color: #c82333;
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+
+
+        /* Footer */
+        .main-footer {
+            background-color: #222;
+            color: #aaa;
+            padding: 30px 20px;
+            text-align: center;
+            font-size: 0.9em;
+            border-top: 5px solid var(--primary-blue);
+        }
+
+        .main-footer .footer-links a {
+            color: #aaa;
+            text-decoration: none;
+            margin: 0 10px;
+            transition: color 0.3s ease;
+        }
+
+        .main-footer .footer-links a:hover {
+            color: var(--primary-blue);
+        }
+        .main-footer p {
+            margin-top: 15px;
+            margin-bottom: 0;
+        }
+
+        /* Responsividade */
+        @media (max-width: 768px) {
+            .main-header {
+                flex-direction: column;
+                padding: 10px 15px;
+            }
+            .main-header .logo {
+                font-size: 1.8em;
+                margin-bottom: 10px;
+            }
+            .nav-links {
+                margin-top: 10px;
+            }
+            .nav-links a {
+                margin: 0 10px;
+                font-size: 0.9em;
+            }
+
+            .hero-section {
+                padding: 60px 15px;
+            }
+            .hero-section h1 {
+                font-size: 2.5em;
+            }
+            .hero-section p {
+                font-size: 1.1em;
+                margin-bottom: 30px;
+            }
+            .hero-buttons {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .hero-buttons .btn {
+                width: 80%; /* Ajuste para botões empilhados */
+                font-size: 1.1em;
+                padding: 12px 20px;
+            }
+
+            .features-section, .how-it-works-section, .cta-section {
+                padding: 40px 15px;
+            }
+            .features-section h2, .how-it-works-section h2, .cta-section h2 {
+                font-size: 2em;
+                margin-bottom: 30px;
+            }
+            .feature-grid, .steps-grid {
+                grid-template-columns: 1fr;
+            }
+            .step-item {
+                width: 100%; /* Full width on small screens */
+            }
+            .cta-section h2 {
+                font-size: 2.2em;
+            }
+            .cta-section p {
+                font-size: 1.1em;
+            }
+            .cta-section .btn {
+                font-size: 1.2em;
+                padding: 15px 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <a href="/" class="logo">VEED</a>
+        <nav class="nav-links">
+            <a href="/login">Login</a>
+            <a href="/register">Registrar</a>
+            <a href="/help">Ajuda</a>
+        </nav>
+    </header>
+
+    <section class="hero-section">
+        <h1>Transforme Seu Tempo em Dinheiro com VEED!</h1>
+        <p>Assista a vídeos de alta qualidade, aprenda coisas novas e seja recompensado por cada minuto do seu tempo. É simples, divertido e lucrativo.</p>
+        <div class="hero-buttons">
+            <a href="/register" class="btn btn-primary"><i class="fas fa-user-plus"></i> Comece Agora</a>
+            <a href="/login" class="btn"><i class="fas fa-sign-in-alt"></i> Já Tenho Conta</a>
+        </div>
+    </section>
+
+    <section class="features-section">
+        <h2>Por Que Escolher VEED?</h2>
+        <div class="feature-grid">
+            <div class="feature-item">
+                <i class="fas fa-dollar-sign"></i>
+                <h3>Ganhos Reais</h3>
+                <p>Receba recompensas diárias em dinheiro por cada vídeo assistido. Seus ganhos são claros e transparentes.</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-film"></i>
+                <h3>Conteúdo Diversificado</h3>
+                <p>Explore uma vasta biblioteca de vídeos interessantes e educativos. Nunca foi tão fácil aprender e ganhar.</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-users"></i>
+                <h3>Indique e Multiplique</h3>
+                <p>Convide amigos e ganhe bônus por cada plano ativado e uma porcentagem dos ganhos diários dos seus indicados.</p>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-mobile-alt"></i>
+                <h3>Acesso Fácil</h3>
+                <p>Nossa plataforma é responsiva e otimizada para dispositivos móveis, permitindo que você ganhe em qualquer lugar, a qualquer hora.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <h2>Como Funciona?</h2>
+        <div class="steps-grid">
+            <div class="step-item">
+                <div class="step-number">1</div>
+                <h3>Cadastre-se</h3>
+                <p>Crie sua conta VEED de forma rápida e gratuita. Apenas seu nome, email e uma senha.</p>
+            </div>
+            <div class="step-item">
+                <div class="step-number">2</div>
+                <h3>Ative um Plano</h3>
+                <p>Escolha um plano de investimento que se adeque aos seus objetivos para desbloquear vídeos diários e potencial de ganho.</p>
+            </div>
+            <div class="step-item">
+                <div class="step-number">3</div>
+                <h3>Assista e Ganhe</h3>
+                <p>Assista aos vídeos liberados diariamente. Cada vídeo assistido até o final te recompensa em dinheiro.</p>
+            </div>
+            <div class="step-item">
+                <div class="step-number">4</div>
+                <h3>Retire Seus Lucros</h3>
+                <p>Acumule seus ganhos na carteira e solicite saques diretamente para sua conta M-Pesa ou e-Mola.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <h2>Pronto para Começar a Ganhar?</h2>
+        <p>Milhares de pessoas já estão transformando seu tempo livre em renda extra. Junte-se à comunidade VEED hoje!</p>
+        <a href="/register" class="btn"><i class="fas fa-hand-point-right"></i> Começar Agora!</a>
+    </section>
+
+    <footer class="main-footer">
+        <div class="footer-links">
+            <a href="/help">Ajuda</a>
+            <a href="/about-us">Sobre Nós</a> <a href="/contact">Contato</a> </div>
+        <p>&copy; 2025 VEED. Todos os direitos reservados.</p>
+    </footer>
+
+    <script>
+        // O JavaScript aqui é mínimo, apenas para garantir que a página é servida corretamente
+        // e que os links funcionem. Não há lógica de backend direta nesta página.
+        document.addEventListener('DOMContentLoaded', () => {
+            // Pequena animação no scroll para as seções (opcional)
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            };
+
+            const observer = new IntersectionObserver((entries, observer) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                        entry.target.style.transition = 'opacity 0.6s ease-out, transform 0.6s ease-out';
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.feature-item, .step-item, .cta-section').forEach(element => {
+                element.style.opacity = '0';
+                element.style.transform = 'translateY(20px)';
+                observer.observe(element);
+            });
+        });
+    </script>
+</body>
 </html>
