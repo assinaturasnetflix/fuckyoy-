@@ -1,96 +1,38 @@
 // server.js
+
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const jwt = require('jsonwebtoken'); // Para autenticação JWT, embora não seja usado diretamente aqui, é importante listar
-const moment = require('moment'); // Para manipulação de datas/horas
-const nodemailer = require('nodemailer'); // Para envio de e-mails
-const multer = require('multer'); // Para upload de arquivos
-const cloudinary = require('cloudinary').v2; // Para upload de arquivos para o Cloudinary
-const path = require('path'); // Para manipulação de caminhos de arquivo, embora minimamente usado aqui
+const cors = require('cors'); // Importar o pacote cors
 
-// Carregar variáveis de ambiente do .env
-dotenv.config();
+dotenv.config(); // Carrega as variáveis de ambiente do arquivo .env
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Configuração do Cloudinary
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET
-});
+// Middleware para permitir requisições de qualquer origem
+app.use(cors());
 
-// Middleware para parsear JSON no corpo das requisições
+// Middleware para parsear o corpo das requisições como JSON
 app.use(express.json());
-
-// Middleware para parsear dados de formulário URL-encoded
-app.use(express.urlencoded({ extended: true }));
 
 // Conexão com o MongoDB Atlas
 mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Conectado ao MongoDB Atlas'))
-    .catch(err => console.error('Erro de conexão ao MongoDB:', err));
+    .then(() => {
+        console.log('Conexão com MongoDB Atlas estabelecida com sucesso!');
+    })
+    .catch((error) => {
+        console.error('Erro ao conectar ao MongoDB Atlas:', error.message);
+    });
 
-// Servir arquivos estáticos (aqui, seus arquivos HTML)
-// Para ocultar a extensão .html, você pode configurar rotas para cada arquivo HTML
-// No entanto, como o frontend está embutido, a abordagem será diferente para servir as páginas.
-// Por enquanto, vamos configurar para servir a raiz para index.html
+// Rotas (serão definidas no arquivo routes.js)
+// Por enquanto, apenas um placeholder para garantir que o servidor está funcionando
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.send('Bem-vindo à API do VEED!');
 });
 
-// Middleware para ocultar a extensão .html (exemplo básico)
-// Isso não vai funcionar perfeitamente para todos os casos com arquivos embutidos,
-// mas é um ponto de partida para rotas diretas.
-app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, 'register.html'));
-});
-
-app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'login.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dashboard.html'));
-});
-
-app.get('/wallet', (req, res) => {
-    res.sendFile(path.join(__dirname, 'wallet.html'));
-});
-
-app.get('/profile', (req, res) => {
-    res.sendFile(path.join(__dirname, 'profile.html'));
-});
-
-app.get('/settings', (req, res) => {
-    res.sendFile(path.join(__dirname, 'settings.html'));
-});
-
-app.get('/referrals', (req, res) => {
-    res.sendFile(path.join(__dirname, 'referrals.html'));
-});
-
-app.get('/help', (req, res) => {
-    res.sendFile(path.join(__dirname, 'help.html'));
-});
-
-// Importar as rotas
-const routes = require('./routes');
-app.use('/api', routes); // Prefira prefixar suas rotas de API com /api
-
-// Rota de fallback para 404
-app.use((req, res, next) => {
-    res.status(404).send('Página não encontrada.');
-});
-
-// Middleware de tratamento de erros
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).send('Algo deu errado!');
-});
-
-const PORT = process.env.PORT || 3000;
+// Inicia o servidor
 app.listen(PORT, () => {
-    console.log(`Servidor rodando na porta ${PORT}`);
+    console.log(`Servidor VEED rodando na porta ${PORT}`);
+    console.log(`Acesse: http://localhost:${PORT}`);
 });

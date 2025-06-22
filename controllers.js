@@ -1,370 +1,419 @@
 // controllers.js
-const { User, Plan, Video, Deposit, Transaction } = require('./models');
-const jwt = require('jsonwebtoken');
+
+const { User, Plan, Video, Deposit, Withdrawal, Transaction, VideoHistory } = require('./models');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const dotenv = require('dotenv');
-const moment = require('moment-timezone'); // Usaremos moment-timezone para lidar com o fuso horário de Maputo
+const moment = require('moment-timezone'); // Para lidar com fuso horário
 const cloudinary = require('cloudinary').v2;
-const { v4: uuidv4 } = require('uuid'); // Para gerar tokens de verificação únicos
-const path = require('path'); // Para resolver caminhos de arquivo, se necessário, mas minimamente usado para urls de redirecionamento
+const { promisify } = require('util');
+const multer = require('multer');
 
+// Configuração do Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// Carregar variáveis de ambiente
-dotenv.config();
-
-// Configuração do Nodemailer para Gmail
+// Configuração do Nodemailer
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
+        pass: process.env.EMAIL_PASS
+    }
 });
 
+// Configuração do Multer para upload em memória (Cloudinary fará o upload final)
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
+
 // Função auxiliar para gerar token JWT
-const generateToken = (id, isAdmin) => {
-    return jwt.sign({ id, isAdmin }, process.env.JWT_SECRET, {
-        expiresIn: '30d', // Token expira em 30 dias
+const generateToken = (id) => {
+    return jwt.sign({ id }, process.env.JWT_SECRET, {
+        expiresIn: '30d',
     });
 };
 
-// --- Funções de Autenticação e Usuário ---
+// Função auxiliar para verificar e atualizar recompensas diárias (rodada à 0h GMT+2)
+const checkAndUpdateDailyRewards = async (userId) => {
+    try {
+        const user = await User.findById(userId).populate('currentPlan');
+        if (!user || !user.currentPlan) {
+            return; // Usuário ou plano não encontrados
+        }
 
-// @desc    Registrar novo usuário
-// @route   POST /api/register
+        const nowMaputo = moment().tz("Africa/Maputo");
+        const lastRewardDateMaputo = user.lastVideoWatchDate ? moment(user.lastVideoWatchDate).tz("Africa/Maputo") : null;
+
+        // Se a última data de recompensa for anterior ao dia atual de Maputo
+        if (!lastRewardDateMaputo || lastRewardDateMaputo.isBefore(nowMaputo, 'day')) {
+            // Resetar vídeos assistidos para o novo dia
+            user.videosWatchedToday = 0;
+            // Atualizar lastVideoWatchDate para a data atual (isso será atualizado novamente quando um vídeo for assistido)
+            user.lastVideoWatchDate = nowMaputo.toDate();
+            await user.save();
+        }
+    } catch (error) {
+        console.error('Erro ao verificar e atualizar recompensas diárias:', error);
+    }
+};
+
+
+// --- USER CONTROLLERS ---
+
+// @desc    Registrar um novo usuário
+// @route   POST /register
 // @access  Public
 exports.registerUser = async (req, res) => {
-    const { nome, email, senha, referidoPorCode } = req.body;
+    const { username, email, password, referralCode } = req.body;
 
-    if (!nome || !email || !senha) {
+    if (!username || !email || !password) {
         return res.status(400).json({ message: 'Por favor, preencha todos os campos obrigatórios.' });
     }
 
     try {
+        // Verificar se o usuário já existe
         let userExists = await User.findOne({ email });
         if (userExists) {
-            return res.status(400).json({ message: 'Usuário com este email já existe.' });
+            return res.status(400).json({ message: 'Este email já está registrado.' });
+        }
+        userExists = await User.findOne({ username });
+        if (userExists) {
+            return res.status(400).json({ message: 'Este nome de usuário já está em uso.' });
         }
 
         // Hash da senha
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(senha, salt);
+        const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Gerar código de referência único para o novo usuário
-        const referralCode = uuidv4().slice(0, 8); // Um código de 8 caracteres
-
-        let referidoPorId = null;
-        if (referidoPorCode) {
-            const referer = await User.findOne({ referralCode: referidoPorCode });
-            if (referer) {
-                referidoPorId = referer._id;
+        let referredBy = null;
+        if (referralCode) {
+            const referrer = await User.findOne({ referralCode });
+            if (referrer) {
+                referredBy = referrer._id;
             } else {
                 return res.status(400).json({ message: 'Código de referência inválido.' });
             }
         }
 
-        // Gerar token de verificação de email
-        const verificationToken = uuidv4();
+        // Gerar código de referência único
+        let uniqueReferralCode;
+        let isCodeUnique = false;
+        while (!isCodeUnique) {
+            uniqueReferralCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+            const existingUserWithCode = await User.findOne({ referralCode: uniqueReferralCode });
+            if (!existingUserWithCode) {
+                isCodeUnique = true;
+            }
+        }
 
+        // Criar usuário
         const user = await User.create({
-            nome,
+            username,
             email,
-            senha: hashedPassword,
-            referralCode,
-            referidoPor: referidoPorId,
-            verificationToken
+            password: hashedPassword,
+            referredBy,
+            referralCode: uniqueReferralCode
         });
 
         if (user) {
             // Enviar email de verificação
-            const verificationUrl = `${req.protocol}://${req.get('host')}/api/verify-email/${verificationToken}`;
+            const verificationToken = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+            const verificationUrl = `${req.protocol}://${req.get('host')}/verify-email?token=${verificationToken}`;
+
             const mailOptions = {
                 from: process.env.EMAIL_USER,
                 to: user.email,
-                subject: 'Verifique seu Email - Bem-vindo ao VEED!',
+                subject: 'Verifique seu email para o VEED',
                 html: `
-                    <p style="font-family: 'Poppins', sans-serif;">Olá ${user.nome},</p>
-                    <p style="font-family: 'Poppins', sans-serif;">Bem-vindo à plataforma VEED! Para ativar sua conta e começar a ganhar, por favor, clique no link abaixo para verificar seu endereço de email:</p>
-                    <p style="font-family: 'Poppins', sans-serif;"><a href="${verificationUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verificar Email Agora</a></p>
-                    <p style="font-family: 'Poppins', sans-serif;">Se você não solicitou isso, pode ignorar este email.</p>
-                    <p style="font-family: 'Poppins', sans-serif;">Atenciosamente,<br>Equipe VEED</p>
-                `,
+                    <h1>Bem-vindo ao VEED!</h1>
+                    <p>Por favor, clique no link abaixo para verificar seu endereço de email:</p>
+                    <a href="${verificationUrl}">Verificar Email</a>
+                    <p>Se você não se registrou no VEED, por favor ignore este email.</p>
+                `
             };
 
             await transporter.sendMail(mailOptions);
 
+            // Email de boas-vindas
+            const welcomeMailOptions = {
+                from: process.env.EMAIL_USER,
+                to: user.email,
+                subject: 'Bem-vindo ao VEED!',
+                html: `
+                    <h1>Olá, ${user.username}!</h1>
+                    <p>Seja muito bem-vindo à plataforma VEED.</p>
+                    <p>Aproveite seus vídeos e comece a ganhar!</p>
+                    <p>Sua plataforma de investimento através do consumo de vídeos.</p>
+                `
+            };
+            await transporter.sendMail(welcomeMailOptions);
+
+
             res.status(201).json({
-                message: 'Usuário registrado com sucesso! Por favor, verifique seu email para ativar a conta.',
-                userId: user._id,
-                email: user.email
+                message: 'Usuário registrado com sucesso. Por favor, verifique seu email para ativar sua conta.',
+                userId: user._id
             });
         } else {
             res.status(400).json({ message: 'Dados do usuário inválidos.' });
         }
     } catch (error) {
         console.error('Erro ao registrar usuário:', error);
-        res.status(500).json({ message: 'Erro no servidor ao registrar usuário.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Verificar email do usuário
-// @route   GET /api/verify-email/:token
+// @desc    Verificar email
+// @route   GET /verify-email
 // @access  Public
 exports.verifyEmail = async (req, res) => {
-    const { token } = req.params;
+    const { token } = req.query;
+
+    if (!token) {
+        return res.status(400).json({ message: 'Token de verificação não fornecido.' });
+    }
 
     try {
-        const user = await User.findOne({ verificationToken: token });
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const user = await User.findById(decoded.id);
 
         if (!user) {
-            return res.status(400).send('Link de verificação inválido ou expirado.');
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
         }
 
-        user.emailVerificado = true;
-        user.verificationToken = undefined; // Remover o token após a verificação
+        if (user.isVerified) {
+            return res.status(200).json({ message: 'Email já verificado.' });
+        }
+
+        user.isVerified = true;
         await user.save();
 
-        // Redirecionar para uma página de sucesso (ex: login ou dashboard)
-        // Como os arquivos são embutidos, você pode redirecionar para uma URL amigável
-        res.status(200).send(`
-            <!DOCTYPE html>
-            <html lang="pt">
-            <head>
-                <meta charset="UTF-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>Email Verificado - VEED</title>
-                <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
-                <style>
-                    body {
-                        font-family: 'Poppins', sans-serif;
-                        display: flex;
-                        justify-content: center;
-                        align-items: center;
-                        min-height: 100vh;
-                        background-color: #f0f2f5;
-                        margin: 0;
-                        color: #333;
-                        text-align: center;
-                    }
-                    .container {
-                        background-color: #ffffff;
-                        padding: 40px;
-                        border-radius: 10px;
-                        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-                        max-width: 500px;
-                        width: 90%;
-                    }
-                    h1 {
-                        color: #28a745;
-                        margin-bottom: 20px;
-                    }
-                    p {
-                        font-size: 1.1em;
-                        line-height: 1.6;
-                        margin-bottom: 30px;
-                    }
-                    a {
-                        background-color: #007bff;
-                        color: white;
-                        padding: 12px 25px;
-                        text-decoration: none;
-                        border-radius: 5px;
-                        font-weight: 600;
-                        transition: background-color 0.3s ease;
-                    }
-                    a:hover {
-                        background-color: #0056b3;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>Email Verificado com Sucesso!</h1>
-                    <p>Sua conta VEED foi ativada. Você já pode fazer login e começar a explorar a plataforma.</p>
-                    <a href="/login">Ir para a página de Login</a>
-                </div>
-            </body>
-            </html>
-        `);
-
+        res.status(200).send('Email verificado com sucesso! Você pode fechar esta página e fazer login.');
     } catch (error) {
         console.error('Erro ao verificar email:', error);
-        res.status(500).send('Erro no servidor ao verificar email.');
+        if (error.name === 'TokenExpiredError') {
+            return res.status(400).json({ message: 'Token de verificação expirado.' });
+        }
+        res.status(500).json({ message: 'Erro na verificação do email.' });
     }
 };
 
 
-// @desc    Autenticar usuário e obter token
-// @route   POST /api/login
+// @desc    Autenticar usuário & obter token
+// @route   POST /login
 // @access  Public
 exports.loginUser = async (req, res) => {
-    const { email, senha } = req.body;
+    const { email, password } = req.body;
 
-    // Verificar se o usuário existe
-    const user = await User.findOne({ email });
+    if (!email || !password) {
+        return res.status(400).json({ message: 'Por favor, insira email e senha.' });
+    }
 
-    if (user && (await bcrypt.compare(senha, user.senha))) {
-        if (!user.emailVerificado) {
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(401).json({ message: 'Credenciais inválidas.' });
+        }
+
+        if (!user.isVerified) {
             return res.status(401).json({ message: 'Por favor, verifique seu email antes de fazer login.' });
         }
 
-        res.json({
+        const isMatch = await bcrypt.compare(password, user.password);
+
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Credenciais inválidas.' });
+        }
+
+        // Se o login for bem-sucedido, verificar e atualizar recompensas diárias
+        await checkAndUpdateDailyRewards(user._id);
+
+        res.status(200).json({
             _id: user._id,
-            nome: user.nome,
+            username: user.username,
             email: user.email,
+            balance: user.balance,
             isAdmin: user.isAdmin,
-            saldo: user.saldo,
-            planoAtual: user.planoAtual,
             avatar: user.avatar,
-            token: generateToken(user._id, user.isAdmin),
+            token: generateToken(user._id),
         });
-    } else {
-        res.status(401).json({ message: 'Email ou senha inválidos.' });
+    } catch (error) {
+        console.error('Erro ao fazer login:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Obter perfil do usuário
-// @route   GET /api/me
+// @desc    Obter dados do perfil do usuário logado
+// @route   GET /me
 // @access  Private
-exports.getProfile = async (req, res) => {
-    const user = await User.findById(req.user.id).select('-senha'); // Excluir a senha
-
-    if (user) {
-        res.json(user);
-    } else {
-        res.status(404).json({ message: 'Usuário não encontrado.' });
+exports.getMe = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password').populate('currentPlan');
+        if (user) {
+            // Garante que os dados de vídeos assistidos hoje estão atualizados com base no fuso horário
+            await checkAndUpdateDailyRewards(user._id);
+            const updatedUser = await User.findById(req.user.id).select('-password').populate('currentPlan');
+            res.status(200).json(updatedUser);
+        } else {
+            res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+    } catch (error) {
+        console.error('Erro ao obter dados do perfil:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Atualizar perfil do usuário
-// @route   PUT /api/me
+// @desc    Atualizar perfil do usuário (avatar e nome de usuário)
+// @route   PUT /profile
 // @access  Private
 exports.updateProfile = async (req, res) => {
-    const user = await User.findById(req.user.id);
+    const { username } = req.body; // Apenas username pode ser atualizado via corpo da requisição
+    let avatarUrl = req.user.avatar; // Manter o avatar existente por padrão
 
-    if (user) {
-        user.nome = req.body.nome || user.nome;
-        // Lidar com upload de avatar via Cloudinary
-        if (req.body.avatar) { // Assumindo que o avatar vem como uma string base64 ou URL pré-carregada
-            try {
-                const result = await cloudinary.uploader.upload(req.body.avatar, {
+    try {
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        // Atualizar username se fornecido e diferente
+        if (username && username !== user.username) {
+            const usernameExists = await User.findOne({ username });
+            if (usernameExists && usernameExists._id.toString() !== user._id.toString()) {
+                return res.status(400).json({ message: 'Este nome de usuário já está em uso.' });
+            }
+            user.username = username;
+        }
+
+        // Lidar com upload de avatar via Multer e Cloudinary
+        upload.single('avatar')(req, res, async (err) => {
+            if (err) {
+                console.error('Erro no upload do Multer:', err);
+                return res.status(500).json({ message: 'Erro ao fazer upload do arquivo.' });
+            }
+
+            if (req.file) {
+                // Fazer upload da imagem para o Cloudinary
+                const b64 = Buffer.from(req.file.buffer).toString("base64");
+                let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+
+                const result = await cloudinary.uploader.upload(dataURI, {
                     folder: 'veed_avatars',
                     transformation: [{ width: 150, height: 150, crop: 'fill', gravity: 'face' }]
                 });
-                user.avatar = result.secure_url;
-            } catch (error) {
-                console.error('Erro ao fazer upload do avatar para o Cloudinary:', error);
-                return res.status(500).json({ message: 'Erro ao fazer upload do avatar.' });
+                avatarUrl = result.secure_url;
             }
-        }
 
-        const updatedUser = await user.save();
+            user.avatar = avatarUrl;
+            await user.save();
 
-        res.json({
-            _id: updatedUser._id,
-            nome: updatedUser.nome,
-            email: updatedUser.email,
-            avatar: updatedUser.avatar,
-            saldo: updatedUser.saldo,
-            message: 'Perfil atualizado com sucesso!'
+            res.status(200).json({
+                message: 'Perfil atualizado com sucesso.',
+                username: user.username,
+                avatar: user.avatar
+            });
         });
-    } else {
-        res.status(404).json({ message: 'Usuário não encontrado.' });
+
+    } catch (error) {
+        console.error('Erro ao atualizar perfil:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
 // @desc    Alterar senha do usuário
-// @route   PUT /api/change-password
+// @route   PUT /change-password
 // @access  Private
 exports.changePassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
-    const user = await User.findById(req.user.id);
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Por favor, preencha a senha atual e a nova senha.' });
+    }
 
-    if (user && (await bcrypt.compare(currentPassword, user.senha))) {
+    try {
+        const user = await User.findById(req.user.id);
+
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Senha atual incorreta.' });
+        }
+
         const salt = await bcrypt.genSalt(10);
-        user.senha = await bcrypt.hash(newPassword, salt);
+        user.password = await bcrypt.hash(newPassword, salt);
         await user.save();
-        res.json({ message: 'Senha alterada com sucesso!' });
-    } else {
-        res.status(401).json({ message: 'Senha atual incorreta.' });
+
+        res.status(200).json({ message: 'Senha alterada com sucesso.' });
+    } catch (error) {
+        console.error('Erro ao alterar senha:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Alterar email do usuário (requer nova verificação)
-// @route   PUT /api/change-email
+// @desc    Obter informações da carteira do usuário
+// @route   GET /wallet
 // @access  Private
-exports.changeEmail = async (req, res) => {
-    const { newEmail } = req.body;
-
-    const user = await User.findById(req.user.id);
-
-    if (!user) {
-        return res.status(404).json({ message: 'Usuário não encontrado.' });
+exports.getWallet = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('balance');
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+        res.status(200).json({ balance: user.balance });
+    } catch (error) {
+        console.error('Erro ao obter carteira:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
+};
 
-    if (user.email === newEmail) {
-        return res.status(400).json({ message: 'O novo email é o mesmo que o atual.' });
+// @desc    Obter histórico de transações do usuário
+// @route   GET /transactions
+// @access  Private
+exports.getTransactions = async (req, res) => {
+    try {
+        const transactions = await Transaction.find({ userId: req.user.id }).sort({ createdAt: -1 });
+        res.status(200).json(transactions);
+    } catch (error) {
+        console.error('Erro ao obter transações:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
-
-    const emailExists = await User.findOne({ email: newEmail });
-    if (emailExists && String(emailExists._id) !== String(user._id)) {
-        return res.status(400).json({ message: 'Este email já está em uso por outra conta.' });
-    }
-
-    // Gerar novo token de verificação e desativar o email atual
-    const newVerificationToken = uuidv4();
-    user.email = newEmail; // Atualiza o email para o novo
-    user.emailVerificado = false; // Define como não verificado
-    user.verificationToken = newVerificationToken; // Define o novo token
-    await user.save();
-
-    // Enviar email de verificação para o novo email
-    const verificationUrl = `${req.protocol}://${req.get('host')}/api/verify-email/${newVerificationToken}`;
-    const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: user.email,
-        subject: 'Verifique seu Novo Email - VEED!',
-        html: `
-            <p style="font-family: 'Poppins', sans-serif;">Olá ${user.nome},</p>
-            <p style="font-family: 'Poppins', sans-serif;">Você solicitou a alteração do seu email na plataforma VEED. Por favor, clique no link abaixo para verificar seu novo endereço de email:</p>
-            <p style="font-family: 'Poppins', sans-serif;"><a href="${verificationUrl}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Verificar Novo Email Agora</a></p>
-            <p style="font-family: 'Poppins', sans-serif;">Sua conta estará inativa até que o novo email seja verificado. Se você não solicitou esta alteração, por favor, entre em contato conosco imediatamente.</p>
-            <p style="font-family: 'Poppins', sans-serif;">Atenciosamente,<br>Equipe VEED</p>
-        `,
-    };
-
-    await transporter.sendMail(mailOptions);
-
-    res.status(200).json({ message: 'Email alterado com sucesso! Um link de verificação foi enviado para o novo endereço.' });
 };
 
 
-// --- Funções de Planos ---
+// --- PLAN CONTROLLERS ---
 
 // @desc    Obter todos os planos disponíveis
-// @route   GET /api/plans
-// @access  Public
-exports.getPlans = async (req, res) => {
+// @route   GET /plans
+// @access  Private (usuários logados)
+exports.getAvailablePlans = async (req, res) => {
     try {
         const plans = await Plan.find({});
-        res.json(plans);
+        res.status(200).json(plans);
     } catch (error) {
-        console.error('Erro ao buscar planos:', error);
-        res.status(500).json({ message: 'Erro no servidor ao buscar planos.' });
+        console.error('Erro ao obter planos disponíveis:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
 // @desc    Comprar um plano
-// @route   POST /api/plans/:planId/buy
+// @route   POST /purchase-plan
 // @access  Private
-exports.buyPlan = async (req, res) => {
-    const { planId } = req.params;
-    const userId = req.user.id;
+exports.purchasePlan = async (req, res) => {
+    const { planId } = req.body;
+
+    if (!planId) {
+        return res.status(400).json({ message: 'ID do plano é obrigatório.' });
+    }
 
     try {
-        const user = await User.findById(userId);
+        const user = await User.findById(req.user.id);
         const plan = await Plan.findById(planId);
 
         if (!user) {
@@ -373,793 +422,811 @@ exports.buyPlan = async (req, res) => {
         if (!plan) {
             return res.status(404).json({ message: 'Plano não encontrado.' });
         }
-        if (!user.emailVerificado) {
-            return res.status(400).json({ message: 'Seu email precisa ser verificado para comprar um plano.' });
-        }
-
-        if (user.planoAtual && user.planoAtual.toString() === planId.toString()) {
+        if (user.currentPlan && user.currentPlan.toString() === planId) {
             return res.status(400).json({ message: 'Você já possui este plano ativo.' });
         }
-
-        if (user.saldo < plan.valor) {
+        if (user.balance < plan.cost) {
             return res.status(400).json({ message: 'Saldo insuficiente para comprar este plano. Por favor, faça um depósito.' });
         }
 
-        // Debitar valor do plano do saldo do usuário
-        user.saldo -= plan.valor;
-        user.planoAtual = plan._id;
-        user.dataAtivacaoPlano = new Date();
-        user.ganhoDiario = plan.recompensaDiaria; // Define o ganho diário base do plano
-        user.videosAssistidosHoje = 0; // Reseta a contagem de vídeos para o novo plano
-        user.ultimoResetVideos = moment().tz('Africa/Maputo').startOf('day').toDate(); // Define a data do último reset
+        // Debitar o custo do plano do saldo do usuário
+        user.balance -= plan.cost;
+        user.currentPlan = plan._id;
+        user.planActivationDate = new Date();
+        user.videosWatchedToday = 0; // Resetar contagem para o novo plano
+        user.lastVideoWatchDate = null; // Resetar para que a recompensa comece no dia seguinte se não assistir
 
         await user.save();
 
-        // Registrar transação de compra de plano
+        // Registrar transação
         await Transaction.create({
             userId: user._id,
-            tipo: 'compra_plano',
-            valor: -plan.valor, // Valor negativo pois é um débito
-            referencia: plan._id,
-            descricao: `Compra do plano: ${plan.nome}`
+            type: 'plan_purchase',
+            amount: -plan.cost, // Valor negativo pois é um débito
+            description: `Compra do plano: ${plan.name}`,
+            relatedId: plan._id,
+            status: 'completed'
         });
 
-        // Lógica para bônus de referência (10% do valor do plano)
-        if (user.referidoPor) {
-            const referer = await User.findById(user.referidoPor);
-            if (referer) {
-                const bonus = plan.valor * 0.10;
-                referer.saldo += bonus;
-                await referer.save();
+        // Bônus de referência para quem indicou (10% do valor do plano)
+        if (user.referredBy) {
+            const referrer = await User.findById(user.referredBy);
+            if (referrer) {
+                const bonusAmount = plan.cost * 0.10;
+                referrer.balance += bonusAmount;
+                await referrer.save();
 
                 await Transaction.create({
-                    userId: referer._id,
-                    tipo: 'bonus_referencia_plano',
-                    valor: bonus,
-                    referencia: user._id, // Referência ao usuário que ativou o plano
-                    descricao: `Bônus de 10% pela ativação do plano ${plan.nome} pelo seu indicado ${user.nome}`
+                    userId: referrer._id,
+                    type: 'referral_plan_bonus',
+                    amount: bonusAmount,
+                    description: `Bônus de 10% pela compra do plano "${plan.name}" pelo usuário ${user.username}`,
+                    relatedId: user._id, // Referência ao usuário que comprou o plano
+                    status: 'completed'
                 });
             }
         }
 
-        res.status(200).json({ message: 'Plano comprado e ativado com sucesso!', user: user.toObject({ getters: true }) });
+        res.status(200).json({ message: `Plano "${plan.name}" ativado com sucesso!`, newBalance: user.balance });
 
     } catch (error) {
         console.error('Erro ao comprar plano:', error);
-        res.status(500).json({ message: 'Erro no servidor ao comprar plano.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// --- Funções de Vídeos ---
+// --- VIDEO CONTROLLERS ---
 
-// @desc    Obter vídeos diários do usuário
-// @route   GET /api/videos
+// @desc    Assistir a um vídeo e receber recompensa
+// @route   POST /watch-video/:videoId
 // @access  Private
-exports.getDailyVideos = async (req, res) => {
-    const userId = req.user.id;
+exports.watchVideo = async (req, res) => {
+    const { videoId } = req.params;
+    const { watchedDuration } = req.body; // Duração assistida em segundos, vinda do frontend
+
+    if (!videoId) {
+        return res.status(400).json({ message: 'ID do vídeo é obrigatório.' });
+    }
 
     try {
-        const user = await User.findById(userId).populate('planoAtual');
+        const user = await User.findById(req.user.id).populate('currentPlan');
+        const video = await Video.findById(videoId);
 
         if (!user) {
             return res.status(404).json({ message: 'Usuário não encontrado.' });
         }
-        if (!user.planoAtual) {
-            return res.status(400).json({ message: 'Você precisa ter um plano ativo para assistir vídeos.' });
+        if (!video) {
+            return res.status(404).json({ message: 'Vídeo não encontrado.' });
         }
-        if (!user.emailVerificado) {
-            return res.status(400).json({ message: 'Seu email precisa ser verificado para assistir vídeos.' });
+        if (!user.currentPlan) {
+            return res.status(400).json({ message: 'Você precisa ter um plano ativo para assistir vídeos e ganhar recompensas.' });
         }
-
-        // Verificar e resetar a contagem de vídeos diários se for um novo dia em Maputo
-        const nowMaputo = moment().tz('Africa/Maputo');
-        const lastResetMaputo = moment(user.ultimoResetVideos).tz('Africa/Maputo');
-
-        if (nowMaputo.isAfter(lastResetMaputo, 'day')) {
-            // É um novo dia, resetar contagem
-            user.videosAssistidosHoje = 0;
-            user.ultimoResetVideos = nowMaputo.startOf('day').toDate();
-            await user.save();
+        if (user.currentPlan.videosPerDay <= user.videosWatchedToday) {
+            return res.status(400).json({ message: `Você atingiu o limite de ${user.currentPlan.videosPerDay} vídeos diários para o seu plano.` });
         }
-
-        if (user.videosAssistidosHoje >= user.planoAtual.videosPorDia) {
-            return res.status(400).json({ message: 'Você já assistiu o número máximo de vídeos permitidos para o seu plano hoje.' });
+        // Verificar se o vídeo foi assistido completamente
+        // Tolerância de 1 segundo para flutuações de rede/player
+        if (!watchedDuration || watchedDuration < (video.duration - 1)) {
+            // Se o usuário sair antes, o frontend deve reenviar a requisição para reiniciar o vídeo
+            // Ou o backend pode apenas não conceder a recompensa e manter a contagem de vídeos assistidos
+            return res.status(400).json({ message: 'Vídeo não assistido até o fim. Recompensa não concedida. Por favor, assista novamente.' });
         }
 
-        // Buscar vídeos que o usuário ainda não assistiu hoje
-        const videosAssistidosIdsHoje = user.historicoVideos
-            .filter(hv => moment(hv.dataAssistido).tz('Africa/Maputo').isSame(nowMaputo, 'day'))
-            .map(hv => hv.videoId);
-
-        const availableVideos = await Video.find({
-            _id: { $nin: videosAssistidosIdsHoje },
-            ativo: true // Apenas vídeos ativos
-        }).limit(user.planoAtual.videosPorDia - user.videosAssistidosHoje); // Buscar apenas o número restante de vídeos
-
-        if (availableVideos.length === 0 && user.videosAssistidosHoje < user.planoAtual.videosPorDia) {
-            return res.status(404).json({ message: 'Nenhum vídeo novo disponível para hoje no momento. Tente novamente mais tarde.' });
-        }
-
-
-        res.status(200).json({
-            videosDisponiveis: availableVideos.slice(0, user.planoAtual.videosPorDia - user.videosAssistidosHoje),
-            videosAssistidosHoje: user.videosAssistidosHoje,
-            limiteDiario: user.planoAtual.videosPorDia,
-            saldoAtual: user.saldo
+        // Verificar se o usuário já assistiu a este vídeo hoje
+        const nowMaputo = moment().tz("Africa/Maputo");
+        const videoAlreadyWatchedToday = await VideoHistory.findOne({
+            userId: user._id,
+            videoId: video._id,
+            watchedAt: {
+                $gte: nowMaputo.startOf('day').toDate(),
+                $lt: nowMaputo.endOf('day').toDate()
+            }
         });
 
-    } catch (error) {
-        console.error('Erro ao obter vídeos diários:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter vídeos diários.' });
-    }
-};
-
-// @desc    Marcar vídeo como assistido e creditar recompensa
-// @route   POST /api/videos/:videoId/watch
-// @access  Private
-exports.watchVideo = async (req, res) => {
-    const { videoId } = req.params;
-    const userId = req.user.id;
-
-    try {
-        const user = await User.findById(userId).populate('planoAtual');
-        const video = await Video.findById(videoId);
-
-        if (!user || !video) {
-            return res.status(404).json({ message: 'Usuário ou vídeo não encontrado.' });
-        }
-        if (!user.planoAtual) {
-            return res.status(400).json({ message: 'Você precisa ter um plano ativo para assistir vídeos.' });
-        }
-        if (!user.emailVerificado) {
-            return res.status(400).json({ message: 'Seu email precisa ser verificado para assistir vídeos.' });
-        }
-
-        const nowMaputo = moment().tz('Africa/Maputo');
-        const lastResetMaputo = moment(user.ultimoResetVideos).tz('Africa/Maputo');
-
-        // Verificar e resetar a contagem de vídeos diários se for um novo dia
-        if (nowMaputo.isAfter(lastResetMaputo, 'day')) {
-            user.videosAssistidosHoje = 0;
-            user.ultimoResetVideos = nowMaputo.startOf('day').toDate();
-            await user.save();
-        }
-
-        if (user.videosAssistidosHoje >= user.planoAtual.videosPorDia) {
-            return res.status(400).json({ message: 'Você já assistiu o número máximo de vídeos permitidos para o seu plano hoje.' });
-        }
-
-        // Verificar se o usuário já assistiu a este vídeo especificamente hoje
-        const alreadyWatchedToday = user.historicoVideos.some(hv =>
-            String(hv.videoId) === String(videoId) &&
-            moment(hv.dataAssistido).tz('Africa/Maputo').isSame(nowMaputo, 'day')
-        );
-
-        if (alreadyWatchedToday) {
+        if (videoAlreadyWatchedToday) {
             return res.status(400).json({ message: 'Você já assistiu a este vídeo hoje.' });
         }
 
-        // Calcular recompensa por vídeo
-        // Se 3 vídeos por dia dão 30MT, então 1 vídeo dá 10MT
-        const recompensaPorVideo = user.planoAtual.recompensaDiaria / user.planoAtual.videosPorDia;
-
-        user.saldo += recompensaPorVideo;
-        user.videosAssistidosHoje += 1;
-        user.historicoVideos.push({ videoId: video._id, dataAssistido: new Date(), recompensaGanhou: recompensaPorVideo });
+        // Conceder recompensa
+        const reward = user.currentPlan.dailyReward / user.currentPlan.videosPerDay; // Recompensa por vídeo
+        user.balance += reward;
+        user.videosWatchedToday += 1;
+        user.lastVideoWatchDate = nowMaputo.toDate(); // Atualiza a última data de visualização
 
         await user.save();
+
+        // Registrar na história de vídeos assistidos
+        await VideoHistory.create({
+            userId: user._id,
+            videoId: video._id,
+            rewardEarned: reward
+        });
 
         // Registrar transação de recompensa
         await Transaction.create({
             userId: user._id,
-            tipo: 'recompensa_video',
-            valor: recompensaPorVideo,
-            referencia: video._id,
-            descricao: `Recompensa por assistir ao vídeo: ${video.titulo}`
+            type: 'video_reward',
+            amount: reward,
+            description: `Recompensa por assistir ao vídeo "${video.title}"`,
+            relatedId: video._id,
+            status: 'completed'
         });
 
-        // Lógica para bônus de referência diário (5% da renda diária do indicado)
-        if (user.referidoPor) {
-            const referer = await User.findById(user.referidoPor);
-            if (referer) {
-                const bonusReferenciaDiario = (recompensaPorVideo * 0.05); // 5% do que o referido ganha por video
-                referer.saldo += bonusReferenciaDiario;
-                await referer.save();
+        // Bônus de referência (5% da renda diária do indicado)
+        if (user.referredBy) {
+            const referrer = await User.findById(user.referredBy);
+            if (referrer) {
+                const dailyReferralBonus = (user.currentPlan.dailyReward * 0.05) / user.currentPlan.videosPerDay; // 5% da renda diária dividida pelos vídeos por dia
+                referrer.balance += dailyReferralBonus;
+                await referrer.save();
 
                 await Transaction.create({
-                    userId: referer._id,
-                    tipo: 'bonus_referencia_diario',
-                    valor: bonusReferenciaDiario,
-                    referencia: user._id, // Referência ao usuário que gerou o bônus
-                    descricao: `Bônus de 5% da recompensa de vídeo do seu indicado ${user.nome}`
+                    userId: referrer._id,
+                    type: 'referral_daily_bonus',
+                    amount: dailyReferralBonus,
+                    description: `Bônus de 5% da renda diária do indicado ${user.username} por assistir vídeo`,
+                    relatedId: user._id,
+                    status: 'completed'
                 });
             }
         }
 
-
         res.status(200).json({
-            message: 'Vídeo assistido com sucesso! Recompensa creditada.',
-            saldoAtual: user.saldo,
-            videosAssistidosHoje: user.videosAssistidosHoje,
-            recompensaGanhou: recompensaPorVideo
+            message: `Recompensa de ${reward} MT adicionada. Vídeo assistido com sucesso!`,
+            newBalance: user.balance,
+            videosWatchedToday: user.videosWatchedToday
         });
 
     } catch (error) {
         console.error('Erro ao assistir vídeo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao assistir vídeo.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// --- Funções de Carteira e Depósito ---
-
-// @desc    Obter informações da carteira do usuário (saldo, histórico de transações)
-// @route   GET /api/wallet
+// @desc    Obter links de referência do usuário
+// @route   GET /referrals
 // @access  Private
-exports.getWalletInfo = async (req, res) => {
-    const userId = req.user.id;
+exports.getReferrals = async (req, res) => {
     try {
-        const user = await User.findById(userId).select('saldo');
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        const transactions = await Transaction.find({ userId }).sort({ createdAt: -1 });
-
-        res.status(200).json({
-            saldo: user.saldo,
-            transacoes: transactions
-        });
-    } catch (error) {
-        console.error('Erro ao obter informações da carteira:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter informações da carteira.' });
-    }
-};
-
-// @desc    Solicitar um depósito
-// @route   POST /api/deposit
-// @access  Private
-exports.requestDeposit = async (req, res) => {
-    const { valor, comprovante } = req.body; // Comprovante pode ser URL ou texto
-
-    if (!valor || !comprovante) {
-        return res.status(400).json({ message: 'Valor e comprovante são obrigatórios.' });
-    }
-    if (valor <= 0) {
-        return res.status(400).json({ message: 'O valor do depósito deve ser positivo.' });
-    }
-    if (!req.user.emailVerificado) {
-        return res.status(400).json({ message: 'Seu email precisa ser verificado para solicitar depósitos.' });
-    }
-
-    try {
-        let comprovanteUrl = comprovante;
-        // Se o comprovante for uma imagem base64 ou link temporário, fazer upload para Cloudinary
-        // Assumindo que 'comprovante' é uma string base64 da imagem
-        if (comprovante.startsWith('data:image')) {
-            try {
-                const result = await cloudinary.uploader.upload(comprovante, {
-                    folder: 'veed_deposits'
-                });
-                comprovanteUrl = result.secure_url;
-            } catch (error) {
-                console.error('Erro ao fazer upload do comprovante para o Cloudinary:', error);
-                return res.status(500).json({ message: 'Erro ao fazer upload do comprovante.' });
-            }
-        }
-
-        const deposit = await Deposit.create({
-            userId: req.user.id,
-            valor,
-            comprovante: comprovanteUrl,
-            status: 'pendente'
-        });
-
-        // Registrar transação como pendente
-        await Transaction.create({
-            userId: req.user.id,
-            tipo: 'deposito',
-            valor: valor, // Valor positivo pois é um crédito potencial
-            status: 'pendente',
-            referencia: deposit._id,
-            descricao: `Solicitação de depósito de ${valor}MT`
-        });
-
-        res.status(201).json({ message: 'Solicitação de depósito enviada com sucesso! Aguardando aprovação do administrador.', deposit });
-    } catch (error) {
-        console.error('Erro ao solicitar depósito:', error);
-        res.status(500).json({ message: 'Erro no servidor ao solicitar depósito.' });
-    }
-};
-
-// @desc    Obter histórico de transações do usuário
-// @route   GET /api/transactions
-// @access  Private
-exports.getTransactions = async (req, res) => {
-    try {
-        const transactions = await Transaction.find({ userId: req.user.id }).sort({ createdAt: -1 });
-        res.status(200).json(transactions);
-    } catch (error) {
-        console.error('Erro ao obter transações:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter transações.' });
-    }
-};
-
-
-// --- Funções de Referência ---
-
-// @desc    Obter informações de referência do usuário
-// @route   GET /api/referrals
-// @access  Private
-exports.getReferralInfo = async (req, res) => {
-    try {
-        const user = await User.findById(req.user.id).select('referralCode nome');
+        const user = await User.findById(req.user.id).select('referralCode');
         if (!user) {
             return res.status(404).json({ message: 'Usuário não encontrado.' });
         }
 
-        const referredUsers = await User.find({ referidoPor: user._id }).select('nome email saldo planoAtual');
-        const referralLink = `${req.protocol}://${req.get('host')}/register?ref=${user.referralCode}`;
+        const referredUsers = await User.find({ referredBy: user._id }).select('username balance currentPlan');
 
-        // Calcular ganhos totais de referência
-        const referralBonusTransactions = await Transaction.find({
-            userId: user._id,
-            $or: [{ tipo: 'bonus_referencia_plano' }, { tipo: 'bonus_referencia_diario' }]
-        });
-
-        const totalReferralEarnings = referralBonusTransactions.reduce((acc, transaction) => acc + transaction.valor, 0);
-
+        // Calcular ganhos totais de referência (pode ser mais complexo para incluir históricos)
+        const totalReferralEarnings = await Transaction.aggregate([
+            { $match: { userId: user._id, type: { $in: ['referral_plan_bonus', 'referral_daily_bonus'] } } },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
 
         res.status(200).json({
             referralCode: user.referralCode,
-            referralLink,
-            indicados: referredUsers,
-            totalGanhosReferencia: totalReferralEarnings
+            referralLink: `${req.protocol}://${req.get('host')}/register?ref=${user.referralCode}`,
+            referredUsers: referredUsers,
+            totalEarnings: totalReferralEarnings.length > 0 ? totalReferralEarnings[0].total : 0
+        });
+    } catch (error) {
+        console.error('Erro ao obter referências:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+
+// --- DEPOSIT CONTROLLERS ---
+
+// @desc    Solicitar um depósito
+// @route   POST /deposit-request
+// @access  Private
+exports.requestDeposit = async (req, res) => {
+    const { amount, paymentMethod, transactionId, proofText } = req.body;
+
+    if (!amount || !paymentMethod) {
+        return res.status(400).json({ message: 'Por favor, preencha o valor e o método de pagamento.' });
+    }
+    if (amount <= 0) {
+        return res.status(400).json({ message: 'O valor do depósito deve ser positivo.' });
+    }
+    if (paymentMethod !== 'M-Pesa' && paymentMethod !== 'e-Mola') {
+        return res.status(400).json({ message: 'Método de pagamento inválido. Use "M-Pesa" ou "e-Mola".' });
+    }
+
+    try {
+        let proof = proofText || ''; // Se não houver arquivo, use o texto
+        // Lidar com upload de comprovante via Multer e Cloudinary, se existir
+        upload.single('proofImage')(req, res, async (err) => {
+            if (err) {
+                console.error('Erro no upload do Multer para comprovante:', err);
+                return res.status(500).json({ message: 'Erro ao fazer upload do comprovante.' });
+            }
+
+            if (req.file) {
+                const b64 = Buffer.from(req.file.buffer).toString("base64");
+                let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+                const result = await cloudinary.uploader.upload(dataURI, { folder: 'veed_deposit_proofs' });
+                proof = result.secure_url;
+            } else if (!proofText) {
+                return res.status(400).json({ message: 'É necessário um comprovante (imagem ou texto).' });
+            }
+
+            const deposit = await Deposit.create({
+                userId: req.user.id,
+                amount,
+                paymentMethod,
+                proof,
+                transactionId: transactionId || null
+            });
+
+            await Transaction.create({
+                userId: req.user.id,
+                type: 'deposit',
+                amount: amount,
+                description: `Solicitação de depósito via ${paymentMethod}`,
+                relatedId: deposit._id,
+                status: 'pending' // Status inicial é pendente
+            });
+
+            res.status(201).json({ message: 'Solicitação de depósito enviada com sucesso! Aguardando aprovação do administrador.' });
         });
 
     } catch (error) {
-        console.error('Erro ao obter informações de referência:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter informações de referência.' });
+        console.error('Erro ao solicitar depósito:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
+// --- WITHDRAWAL CONTROLLERS ---
 
-// --- Funções do Painel Administrativo ---
+// @desc    Solicitar um levantamento
+// @route   POST /withdrawal-request
+// @access  Private
+exports.requestWithdrawal = async (req, res) => {
+    const { amount, paymentMethod, phoneNumber } = req.body;
 
-// @desc    Obter todos os usuários (Admin)
-// @route   GET /api/admin/users
-// @access  Private/Admin
-exports.getAllUsers = async (req, res) => {
-    try {
-        const users = await User.find({}).select('-senha').populate('planoAtual'); // Não enviar senhas
-        res.status(200).json(users);
-    } catch (error) {
-        console.error('Erro ao obter todos os usuários:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter usuários.' });
+    if (!amount || !paymentMethod || !phoneNumber) {
+        return res.status(400).json({ message: 'Por favor, preencha o valor, método de pagamento e número de telefone.' });
     }
-};
+    if (amount <= 0) {
+        return res.status(400).json({ message: 'O valor do levantamento deve ser positivo.' });
+    }
+    if (paymentMethod !== 'M-Pesa' && paymentMethod !== 'e-Mola') {
+        return res.status(400).json({ message: 'Método de pagamento inválido. Use "M-Pesa" ou "e-Mola".' });
+    }
 
-// @desc    Obter usuário por ID (Admin)
-// @route   GET /api/admin/users/:userId
-// @access  Private/Admin
-exports.getUserById = async (req, res) => {
     try {
-        const user = await User.findById(req.params.userId).select('-senha').populate('planoAtual');
+        const user = await User.findById(req.user.id);
         if (!user) {
             return res.status(404).json({ message: 'Usuário não encontrado.' });
         }
-        res.status(200).json(user);
-    } catch (error) {
-        console.error('Erro ao obter usuário por ID:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter usuário.' });
-    }
-};
+        if (user.balance < amount) {
+            return res.status(400).json({ message: 'Saldo insuficiente para este levantamento.' });
+        }
 
-// @desc    Bloquear usuário (Admin)
-// @route   PUT /api/admin/users/:userId/block
-// @access  Private/Admin
-exports.blockUser = async (req, res) => {
-    try {
-        const user = await User.findById(req.params.userId);
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        if (user.isAdmin) {
-            return res.status(400).json({ message: 'Não é possível bloquear um administrador.' });
-        }
-        user.isActive = false; // Adicione um campo 'isActive' no modelo de usuário se ainda não tiver
-        await user.save();
-        res.status(200).json({ message: `Usuário ${user.email} bloqueado com sucesso.` });
-    } catch (error) {
-        console.error('Erro ao bloquear usuário:', error);
-        res.status(500).json({ message: 'Erro no servidor ao bloquear usuário.' });
-    }
-};
+        // Criar a solicitação de levantamento
+        const withdrawal = await Withdrawal.create({
+            userId: req.user.id,
+            amount,
+            paymentMethod,
+            phoneNumber,
+            status: 'pending'
+        });
 
-// @desc    Desbloquear usuário (Admin)
-// @route   PUT /api/admin/users/:userId/unblock
-// @access  Private/Admin
-exports.unblockUser = async (req, res) => {
-    try {
-        const user = await User.findById(req.params.userId);
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        user.isActive = true; // Adicione um campo 'isActive' no modelo de usuário
-        await user.save();
-        res.status(200).json({ message: `Usuário ${user.email} desbloqueado com sucesso.` });
-    } catch (error) {
-        console.error('Erro ao desbloquear usuário:', error);
-        res.status(500).json({ message: 'Erro no servidor ao desbloquear usuário.' });
-    }
-};
-
-// @desc    Adicionar saldo manualmente a um usuário (Admin)
-// @route   POST /api/admin/users/:userId/add-balance
-// @access  Private/Admin
-exports.addBalanceToUser = async (req, res) => {
-    const { valor, descricao } = req.body;
-    if (!valor || valor <= 0) {
-        return res.status(400).json({ message: 'Valor inválido.' });
-    }
-    try {
-        const user = await User.findById(req.params.userId);
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        user.saldo += valor;
-        await user.save();
+        // Debitar o valor do saldo do usuário imediatamente (ou após aprovação do admin, dependendo da regra de negócio)
+        // Optamos por debitar após aprovação do admin para evitar saldo negativo em caso de rejeição
+        // Por enquanto, apenas registramos a solicitação. A dedução do saldo ocorrerá na aprovação do admin.
 
         await Transaction.create({
-            userId: user._id,
-            tipo: 'credito_admin',
-            valor: valor,
-            descricao: descricao || 'Crédito manual por administrador'
+            userId: req.user.id,
+            type: 'withdrawal',
+            amount: -amount, // Valor negativo pois é um débito futuro
+            description: `Solicitação de levantamento via ${paymentMethod} para ${phoneNumber}`,
+            relatedId: withdrawal._id,
+            status: 'pending' // Status inicial é pendente
         });
 
-        res.status(200).json({ message: `Saldo adicionado ao usuário ${user.email}. Novo saldo: ${user.saldo}` });
+        res.status(201).json({ message: 'Solicitação de levantamento enviada com sucesso! Aguardando aprovação do administrador.' });
     } catch (error) {
-        console.error('Erro ao adicionar saldo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao adicionar saldo.' });
-    }
-};
-
-// @desc    Remover saldo manualmente de um usuário (Admin)
-// @route   POST /api/admin/users/:userId/remove-balance
-// @access  Private/Admin
-exports.removeBalanceFromUser = async (req, res) => {
-    const { valor, descricao } = req.body;
-    if (!valor || valor <= 0) {
-        return res.status(400).json({ message: 'Valor inválido.' });
-    }
-    try {
-        const user = await User.findById(req.params.userId);
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário não encontrado.' });
-        }
-        if (user.saldo < valor) {
-            return res.status(400).json({ message: 'Saldo insuficiente para remover este valor.' });
-        }
-        user.saldo -= valor;
-        await user.save();
-
-        await Transaction.create({
-            userId: user._id,
-            tipo: 'debito_admin',
-            valor: -valor, // Valor negativo para débito
-            descricao: descricao || 'Débito manual por administrador'
-        });
-
-        res.status(200).json({ message: `Saldo removido do usuário ${user.email}. Novo saldo: ${user.saldo}` });
-    } catch (error) {
-        console.error('Erro ao remover saldo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao remover saldo.' });
+        console.error('Erro ao solicitar levantamento:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
 
-// @desc    Criar novo plano (Admin)
-// @route   POST /api/admin/plans
+// --- ADMIN CONTROLLERS ---
+
+// Middleware para upload de vídeo (Cloudinary)
+const uploadVideoMiddleware = upload.single('videoFile'); // Assumindo que o campo do formulário é 'videoFile'
+
+// @desc    Criar um novo plano
+// @route   POST /admin/plans
 // @access  Private/Admin
 exports.createPlan = async (req, res) => {
-    const { nome, valor, videosPorDia, duracaoDias, recompensaDiaria } = req.body;
+    const { name, cost, dailyReward, videosPerDay, durationDays } = req.body;
 
-    if (!nome || !valor || !videosPorDia || !duracaoDias || !recompensaDiaria) {
-        return res.status(400).json({ message: 'Todos os campos do plano são obrigatórios.' });
+    if (!name || !cost || !dailyReward || !videosPerDay || !durationDays) {
+        return res.status(400).json({ message: 'Por favor, preencha todos os campos do plano.' });
+    }
+    if (cost <= 0 || dailyReward <= 0 || videosPerDay <= 0 || durationDays <= 0) {
+        return res.status(400).json({ message: 'Todos os valores devem ser positivos.' });
     }
 
     try {
-        const planExists = await Plan.findOne({ nome });
-        if (planExists) {
-            return res.status(400).json({ message: 'Já existe um plano com este nome.' });
-        }
-
-        const recompensaTotalEstimada = recompensaDiaria * duracaoDias;
-
+        const totalReward = dailyReward * durationDays;
         const plan = await Plan.create({
-            nome,
-            valor,
-            videosPorDia,
-            duracaoDias,
-            recompensaDiaria,
-            recompensaTotalEstimada
+            name,
+            cost,
+            dailyReward,
+            videosPerDay,
+            durationDays,
+            totalReward
         });
-
         res.status(201).json({ message: 'Plano criado com sucesso!', plan });
     } catch (error) {
         console.error('Erro ao criar plano:', error);
-        res.status(500).json({ message: 'Erro no servidor ao criar plano.' });
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Já existe um plano com este nome.' });
+        }
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Atualizar plano (Admin)
-// @route   PUT /api/admin/plans/:planId
+// @desc    Atualizar um plano existente
+// @route   PUT /admin/plans/:id
 // @access  Private/Admin
 exports.updatePlan = async (req, res) => {
-    const { nome, valor, videosPorDia, duracaoDias, recompensaDiaria } = req.body;
+    const { id } = req.params;
+    const { name, cost, dailyReward, videosPerDay, durationDays } = req.body;
+
     try {
-        const plan = await Plan.findById(req.params.planId);
+        const plan = await Plan.findById(id);
         if (!plan) {
             return res.status(404).json({ message: 'Plano não encontrado.' });
         }
 
-        plan.nome = nome || plan.nome;
-        plan.valor = valor || plan.valor;
-        plan.videosPorDia = videosPorDia || plan.videosPorDia;
-        plan.duracaoDias = duracaoDias || plan.duracaoDias;
-        plan.recompensaDiaria = recompensaDiaria || plan.recompensaDiaria;
-        plan.recompensaTotalEstimada = (recompensaDiaria || plan.recompensaDiaria) * (duracaoDias || plan.duracaoDias);
+        if (name) plan.name = name;
+        if (cost) plan.cost = cost;
+        if (dailyReward) plan.dailyReward = dailyReward;
+        if (videosPerDay) plan.videosPerDay = videosPerDay;
+        if (durationDays) plan.durationDays = durationDays;
 
+        plan.totalReward = plan.dailyReward * plan.durationDays; // Recalcular
 
-        const updatedPlan = await plan.save();
-        res.status(200).json({ message: 'Plano atualizado com sucesso!', plan: updatedPlan });
+        await plan.save();
+        res.status(200).json({ message: 'Plano atualizado com sucesso!', plan });
     } catch (error) {
         console.error('Erro ao atualizar plano:', error);
-        res.status(500).json({ message: 'Erro no servidor ao atualizar plano.' });
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'Já existe um plano com este nome.' });
+        }
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Excluir plano (Admin)
-// @route   DELETE /api/admin/plans/:planId
+// @desc    Excluir um plano
+// @route   DELETE /admin/plans/:id
 // @access  Private/Admin
 exports.deletePlan = async (req, res) => {
+    const { id } = req.params;
+
     try {
-        const plan = await Plan.findById(req.params.planId);
+        const plan = await Plan.findByIdAndDelete(id);
         if (!plan) {
             return res.status(404).json({ message: 'Plano não encontrado.' });
         }
-        await plan.deleteOne(); // Use deleteOne() para remover o documento
         res.status(200).json({ message: 'Plano excluído com sucesso.' });
     } catch (error) {
         console.error('Erro ao excluir plano:', error);
-        res.status(500).json({ message: 'Erro no servidor ao excluir plano.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Fazer upload de vídeo (Admin)
-// @route   POST /api/admin/videos
+// @desc    Adicionar um novo vídeo (via URL ou upload)
+// @route   POST /admin/videos
 // @access  Private/Admin
-exports.uploadVideo = async (req, res) => {
-    const { titulo, url, duracao } = req.body;
+exports.addVideo = async (req, res) => {
+    const { title, duration, rewardAmount, videoUrl } = req.body; // videoUrl é para links externos
 
-    if (!titulo || !url || !duracao) {
-        return res.status(400).json({ message: 'Título, URL e duração do vídeo são obrigatórios.' });
+    if (!title || !duration || !rewardAmount) {
+        return res.status(400).json({ message: 'Título, duração e recompensa são obrigatórios.' });
+    }
+    if (duration <= 0 || rewardAmount <= 0) {
+        return res.status(400).json({ message: 'Duração e recompensa devem ser valores positivos.' });
     }
 
     try {
-        let videoUrl = url;
-        // Se a URL for um arquivo local ou base64, fazer upload para Cloudinary
-        // Assumindo que 'url' pode ser um link direto ou um path de arquivo/base64 para upload
-        // Para uploads de arquivos reais, você precisaria de um middleware como 'multer'
-        // e um formulário 'multipart/form-data'. Para simplificar, assumimos que 'url' é
-        // diretamente o que o Cloudinary precisa ou um link já hospedado.
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-             try {
-                // Aqui você precisaria integrar Multer para lidar com o upload do arquivo
-                // e então enviar o buffer/path do arquivo para o Cloudinary.
-                // Para este exemplo, vou simular o upload se for um "arquivo local"
-                // Na prática, você enviaria o buffer do arquivo lido pelo Multer.
-                // Por agora, vou assumir que 'url' é um link direto ou algo que o Cloudinary pode processar
-                // como um arquivo se fosse um stream ou buffer.
-                // Para uploads reais de arquivos do dispositivo, o Multer seria crucial aqui.
-
-                // Exemplo simulado de upload de uma URL pré-existente ou um placeholder
-                const result = await cloudinary.uploader.upload(url, {
-                    resource_type: "video",
-                    folder: "veed_videos"
-                });
-                videoUrl = result.secure_url;
-            } catch (error) {
-                console.error('Erro ao fazer upload do vídeo para o Cloudinary:', error);
-                return res.status(500).json({ message: 'Erro ao fazer upload do vídeo. Certifique-se de que a URL é válida ou o arquivo é processável.' });
+        // Usar o middleware de upload do multer
+        uploadVideoMiddleware(req, res, async (err) => {
+            if (err) {
+                console.error('Erro no upload do Multer para vídeo:', err);
+                return res.status(500).json({ message: 'Erro ao fazer upload do vídeo.' });
             }
-        }
 
+            let finalVideoUrl = videoUrl; // Prioriza URL externa se fornecida
 
-        const video = await Video.create({
-            titulo,
-            url: videoUrl,
-            duracao,
-            ativo: true
+            if (req.file) {
+                // Se um arquivo foi enviado, fazer upload para o Cloudinary
+                const b64 = Buffer.from(req.file.buffer).toString("base64");
+                let dataURI = "data:" + req.file.mimetype + ";base64," + b64;
+                const result = await cloudinary.uploader.upload(dataURI, {
+                    folder: 'veed_videos',
+                    resource_type: 'video'
+                });
+                finalVideoUrl = result.secure_url;
+            } else if (!videoUrl) {
+                return res.status(400).json({ message: 'É necessário fornecer uma URL de vídeo ou fazer upload de um arquivo.' });
+            }
+
+            const video = await Video.create({
+                title,
+                videoUrl: finalVideoUrl,
+                duration,
+                rewardAmount
+            });
+
+            res.status(201).json({ message: 'Vídeo adicionado com sucesso!', video });
         });
 
-        res.status(201).json({ message: 'Vídeo adicionado com sucesso!', video });
     } catch (error) {
-        console.error('Erro ao fazer upload de vídeo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao adicionar vídeo.' });
+        console.error('Erro ao adicionar vídeo:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-
-// @desc    Atualizar vídeo (Admin)
-// @route   PUT /api/admin/videos/:videoId
+// @desc    Atualizar um vídeo existente
+// @route   PUT /admin/videos/:id
 // @access  Private/Admin
 exports.updateVideo = async (req, res) => {
-    const { titulo, url, duracao, ativo } = req.body;
+    const { id } = req.params;
+    const { title, duration, rewardAmount, videoUrl, isActive } = req.body;
+
     try {
-        const video = await Video.findById(req.params.videoId);
+        const video = await Video.findById(id);
         if (!video) {
             return res.status(404).json({ message: 'Vídeo não encontrado.' });
         }
 
-        video.titulo = titulo || video.titulo;
-        video.duracao = duracao || video.duracao;
-        video.ativo = (ativo !== undefined) ? ativo : video.ativo;
+        if (title) video.title = title;
+        if (duration) video.duration = duration;
+        if (rewardAmount) video.rewardAmount = rewardAmount;
+        if (videoUrl) video.videoUrl = videoUrl;
+        if (typeof isActive === 'boolean') video.isActive = isActive;
 
-        if (url && url !== video.url) { // Se a URL mudou
-            let videoUrl = url;
-            if (!url.startsWith('http://') && !url.startsWith('https://')) {
-                try {
-                    const result = await cloudinary.uploader.upload(url, {
-                        resource_type: "video",
-                        folder: "veed_videos"
-                    });
-                    videoUrl = result.secure_url;
-                } catch (error) {
-                    console.error('Erro ao fazer upload do novo vídeo para o Cloudinary:', error);
-                    return res.status(500).json({ message: 'Erro ao fazer upload do novo vídeo.' });
-                }
-            }
-            video.url = videoUrl;
-        }
-
-        const updatedVideo = await video.save();
-        res.status(200).json({ message: 'Vídeo atualizado com sucesso!', video: updatedVideo });
+        await video.save();
+        res.status(200).json({ message: 'Vídeo atualizado com sucesso!', video });
     } catch (error) {
         console.error('Erro ao atualizar vídeo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao atualizar vídeo.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Excluir vídeo (Admin)
-// @route   DELETE /api/admin/videos/:videoId
+// @desc    Excluir um vídeo
+// @route   DELETE /admin/videos/:id
 // @access  Private/Admin
 exports.deleteVideo = async (req, res) => {
+    const { id } = req.params;
+
     try {
-        const video = await Video.findById(req.params.videoId);
+        const video = await Video.findByIdAndDelete(id);
         if (!video) {
             return res.status(404).json({ message: 'Vídeo não encontrado.' });
         }
-        // Opcional: Remover o vídeo do Cloudinary também
-        // const publicId = video.url.split('/').pop().split('.')[0];
-        // await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
-
-        await video.deleteOne();
+        // Opcional: remover o vídeo do Cloudinary se for o caso
         res.status(200).json({ message: 'Vídeo excluído com sucesso.' });
     } catch (error) {
         console.error('Erro ao excluir vídeo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao excluir vídeo.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+// @desc    Obter todos os usuários (apenas para admin)
+// @route   GET /admin/users
+// @access  Private/Admin
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find({}).select('-password'); // Não enviar senhas
+        res.status(200).json(users);
+    } catch (error) {
+        console.error('Erro ao obter usuários:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+// @desc    Bloquear um usuário
+// @route   PUT /admin/users/:id/block
+// @access  Private/Admin
+exports.blockUser = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+        user.isActive = false; // Adicione um campo isActive no modelo User se ainda não o tiver
+        await user.save();
+        res.status(200).json({ message: `Usuário ${user.username} bloqueado com sucesso.` });
+    } catch (error) {
+        console.error('Erro ao bloquear usuário:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+// @desc    Desbloquear um usuário
+// @route   PUT /admin/users/:id/unblock
+// @access  Private/Admin
+exports.unblockUser = async (req, res) => {
+    const { id } = req.params;
+    try {
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+        user.isActive = true; // Adicione um campo isActive no modelo User se ainda não o tiver
+        await user.save();
+        res.status(200).json({ message: `Usuário ${user.username} desbloqueado com sucesso.` });
+    } catch (error) {
+        console.error('Erro ao desbloquear usuário:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
 
-// @desc    Ver depósitos pendentes (Admin)
-// @route   GET /api/admin/deposits/pending
+// @desc    Obter depósitos pendentes
+// @route   GET /admin/deposits/pending
 // @access  Private/Admin
 exports.getPendingDeposits = async (req, res) => {
     try {
-        const pendingDeposits = await Deposit.find({ status: 'pendente' }).populate('userId', 'nome email');
-        res.status(200).json(pendingDeposits);
+        const deposits = await Deposit.find({ status: 'pending' }).populate('userId', 'username email');
+        res.status(200).json(deposits);
     } catch (error) {
         console.error('Erro ao obter depósitos pendentes:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter depósitos pendentes.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Aprovar depósito (Admin)
-// @route   PUT /api/admin/deposits/:depositId/approve
+// @desc    Aprovar um depósito
+// @route   PUT /admin/deposits/:id/approve
 // @access  Private/Admin
 exports.approveDeposit = async (req, res) => {
-    const { depositId } = req.params;
+    const { id } = req.params;
+
     try {
-        const deposit = await Deposit.findById(depositId);
+        const deposit = await Deposit.findById(id);
+
         if (!deposit) {
             return res.status(404).json({ message: 'Depósito não encontrado.' });
         }
-        if (deposit.status !== 'pendente') {
-            return res.status(400).json({ message: 'Este depósito já foi processado.' });
+        if (deposit.status !== 'pending') {
+            return res.status(400).json({ message: `Depósito já está ${deposit.status}.` });
         }
+
+        deposit.status = 'approved';
+        await deposit.save();
 
         const user = await User.findById(deposit.userId);
-        if (!user) {
-            return res.status(404).json({ message: 'Usuário do depósito não encontrado.' });
+        if (user) {
+            user.balance += deposit.amount;
+            await user.save();
+
+            // Atualizar transação para status 'completed'
+            await Transaction.findOneAndUpdate(
+                { relatedId: deposit._id, type: 'deposit' },
+                { status: 'completed' }
+            );
+
+            res.status(200).json({ message: `Depósito de ${deposit.amount} MT aprovado para ${user.username}.` });
+        } else {
+            res.status(404).json({ message: 'Usuário do depósito não encontrado.' });
         }
-
-        user.saldo += deposit.valor;
-        deposit.status = 'aprovado';
-        deposit.aprovadoPor = req.user.id; // ID do admin logado
-        deposit.dataAprovacao = new Date();
-
-        await user.save();
-        await deposit.save();
-
-        // Atualizar status da transação de depósito
-        await Transaction.findOneAndUpdate(
-            { referencia: deposit._id, tipo: 'deposito', status: 'pendente' },
-            { status: 'concluido', descricao: `Depósito de ${deposit.valor}MT aprovado` }
-        );
-
-
-        res.status(200).json({ message: 'Depósito aprovado e saldo creditado ao usuário.', deposit });
     } catch (error) {
         console.error('Erro ao aprovar depósito:', error);
-        res.status(500).json({ message: 'Erro no servidor ao aprovar depósito.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Rejeitar depósito (Admin)
-// @route   PUT /api/admin/deposits/:depositId/reject
+// @desc    Rejeitar um depósito
+// @route   PUT /admin/deposits/:id/reject
 // @access  Private/Admin
 exports.rejectDeposit = async (req, res) => {
-    const { depositId } = req.params;
+    const { id } = req.params;
+
     try {
-        const deposit = await Deposit.findById(depositId);
+        const deposit = await Deposit.findById(id);
+
         if (!deposit) {
             return res.status(404).json({ message: 'Depósito não encontrado.' });
         }
-        if (deposit.status !== 'pendente') {
-            return res.status(400).json({ message: 'Este depósito já foi processado.' });
+        if (deposit.status !== 'pending') {
+            return res.status(400).json({ message: `Depósito já está ${deposit.status}.` });
         }
 
-        deposit.status = 'rejeitado';
-        deposit.aprovadoPor = req.user.id; // ID do admin logado
-        deposit.dataAprovacao = new Date();
+        deposit.status = 'rejected';
         await deposit.save();
 
-        // Atualizar status da transação de depósito
+        // Atualizar transação para status 'failed'
         await Transaction.findOneAndUpdate(
-            { referencia: deposit._id, tipo: 'deposito', status: 'pendente' },
-            { status: 'cancelado', descricao: `Depósito de ${deposit.valor}MT rejeitado` }
+            { relatedId: deposit._id, type: 'deposit' },
+            { status: 'failed' }
         );
 
-        res.status(200).json({ message: 'Depósito rejeitado.', deposit });
+        res.status(200).json({ message: `Depósito de ${deposit.amount} MT rejeitado.` });
     } catch (error) {
         console.error('Erro ao rejeitar depósito:', error);
-        res.status(500).json({ message: 'Erro no servidor ao rejeitar depósito.' });
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };
 
-// @desc    Obter estatísticas do painel administrativo
-// @route   GET /api/admin/dashboard-stats
+// @desc    Obter levantamentos pendentes
+// @route   GET /admin/withdrawals/pending
 // @access  Private/Admin
-exports.getAdminDashboardStats = async (req, res) => {
+exports.getPendingWithdrawals = async (req, res) => {
     try {
-        const totalUsers = await User.countDocuments({});
-        const activePlans = await User.countDocuments({ planoAtual: { $ne: null } });
-        const totalVideos = await Video.countDocuments({});
-        const pendingDepositsCount = await Deposit.countDocuments({ status: 'pendente' });
-        // Você pode adicionar mais estatísticas conforme a necessidade, como:
-        // - Saldo total em caixa na plataforma (se houver um modelo para isso)
-        // - Ganhos totais de referência pagos
-        // - Total de vídeos assistidos (se você agregar isso em algum lugar)
+        const withdrawals = await Withdrawal.find({ status: 'pending' }).populate('userId', 'username email');
+        res.status(200).json(withdrawals);
+    } catch (error) {
+        console.error('Erro ao obter levantamentos pendentes:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
 
-        res.status(200).json({
-            totalUsers,
-            activePlans,
-            totalVideos,
-            pendingDepositsCount
+// @desc    Aprovar um levantamento
+// @route   PUT /admin/withdrawals/:id/approve
+// @access  Private/Admin
+exports.approveWithdrawal = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const withdrawal = await Withdrawal.findById(id);
+
+        if (!withdrawal) {
+            return res.status(404).json({ message: 'Levantamento não encontrado.' });
+        }
+        if (withdrawal.status !== 'pending') {
+            return res.status(400).json({ message: `Levantamento já está ${withdrawal.status}.` });
+        }
+
+        const user = await User.findById(withdrawal.userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário do levantamento não encontrado.' });
+        }
+        if (user.balance < withdrawal.amount) {
+            // Isso não deveria acontecer se a validação do frontend for boa, mas é um fallback
+            withdrawal.status = 'rejected';
+            await withdrawal.save();
+            await Transaction.findOneAndUpdate(
+                { relatedId: withdrawal._id, type: 'withdrawal' },
+                { status: 'failed', description: 'Levantamento falhou: saldo insuficiente no momento da aprovação do admin.' }
+            );
+            return res.status(400).json({ message: 'Saldo insuficiente do usuário para aprovar este levantamento.' });
+        }
+
+        // Debitar o saldo do usuário
+        user.balance -= withdrawal.amount;
+        await user.save();
+
+        withdrawal.status = 'approved';
+        await withdrawal.save();
+
+        // Atualizar transação para status 'completed'
+        await Transaction.findOneAndUpdate(
+            { relatedId: withdrawal._id, type: 'withdrawal' },
+            { status: 'completed' }
+        );
+
+        res.status(200).json({ message: `Levantamento de ${withdrawal.amount} MT aprovado para ${user.username}. O dinheiro deve ser enviado manualmente para ${withdrawal.phoneNumber}.` });
+    } catch (error) {
+        console.error('Erro ao aprovar levantamento:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+// @desc    Rejeitar um levantamento
+// @route   PUT /admin/withdrawals/:id/reject
+// @access  Private/Admin
+exports.rejectWithdrawal = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const withdrawal = await Withdrawal.findById(id);
+
+        if (!withdrawal) {
+            return res.status(404).json({ message: 'Levantamento não encontrado.' });
+        }
+        if (withdrawal.status !== 'pending') {
+            return res.status(400).json({ message: `Levantamento já está ${withdrawal.status}.` });
+        }
+
+        withdrawal.status = 'rejected';
+        await withdrawal.save();
+
+        // Atualizar transação para status 'failed'
+        await Transaction.findOneAndUpdate(
+            { relatedId: withdrawal._id, type: 'withdrawal' },
+            { status: 'failed' }
+        );
+
+        res.status(200).json({ message: `Levantamento de ${withdrawal.amount} MT rejeitado.` });
+    } catch (error) {
+        console.error('Erro ao rejeitar levantamento:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+// @desc    Adicionar saldo manualmente a um usuário
+// @route   POST /admin/add-balance/:userId
+// @access  Private/Admin
+exports.addBalanceManually = async (req, res) => {
+    const { userId } = req.params;
+    const { amount, description } = req.body;
+
+    if (!amount || amount <= 0) {
+        return res.status(400).json({ message: 'Valor inválido. O valor deve ser positivo.' });
+    }
+    if (!description) {
+        return res.status(400).json({ message: 'A descrição é obrigatória.' });
+    }
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+
+        user.balance += amount;
+        await user.save();
+
+        await Transaction.create({
+            userId: user._id,
+            type: 'manual_credit', // Novo tipo de transação
+            amount: amount,
+            description: `Crédito manual: ${description}`,
+            status: 'completed'
         });
 
+        res.status(200).json({ message: `Saldo de ${amount} MT adicionado a ${user.username}. Novo saldo: ${user.balance}.` });
     } catch (error) {
-        console.error('Erro ao obter estatísticas do painel administrativo:', error);
-        res.status(500).json({ message: 'Erro no servidor ao obter estatísticas.' });
+        console.error('Erro ao adicionar saldo manualmente:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
+    }
+};
+
+// @desc    Remover saldo manualmente de um usuário
+// @route   POST /admin/remove-balance/:userId
+// @access  Private/Admin
+exports.removeBalanceManually = async (req, res) => {
+    const { userId } = req.params;
+    const { amount, description } = req.body;
+
+    if (!amount || amount <= 0) {
+        return res.status(400).json({ message: 'Valor inválido. O valor deve ser positivo.' });
+    }
+    if (!description) {
+        return res.status(400).json({ message: 'A descrição é obrigatória.' });
+    }
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'Usuário não encontrado.' });
+        }
+        if (user.balance < amount) {
+            return res.status(400).json({ message: `Saldo insuficiente para remover ${amount} MT. Saldo atual: ${user.balance}.` });
+        }
+
+        user.balance -= amount;
+        await user.save();
+
+        await Transaction.create({
+            userId: user._id,
+            type: 'manual_debit', // Novo tipo de transação
+            amount: -amount, // Negativo para débito
+            description: `Débito manual: ${description}`,
+            status: 'completed'
+        });
+
+        res.status(200).json({ message: `Saldo de ${amount} MT removido de ${user.username}. Novo saldo: ${user.balance}.` });
+    } catch (error) {
+        console.error('Erro ao remover saldo manualmente:', error);
+        res.status(500).json({ message: 'Erro no servidor.' });
     }
 };

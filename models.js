@@ -1,12 +1,14 @@
 // models.js
+
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
-// --- Esquema de Usuário (User) ---
+// --- User Schema ---
 const userSchema = new Schema({
-    nome: {
+    username: {
         type: String,
         required: true,
+        unique: true,
         trim: true
     },
     email: {
@@ -14,200 +16,245 @@ const userSchema = new Schema({
         required: true,
         unique: true,
         trim: true,
-        lowercase: true
+        lowercase: true,
+        match: [/.+@.+\..+/, 'Por favor, insira um email válido']
     },
-    senha: {
+    password: {
         type: String,
         required: true
     },
-    avatar: {
-        type: String, // URL do Cloudinary para a imagem do avatar
-        default: '' // Será uma string vazia se não houver avatar
+    isVerified: {
+        type: Boolean,
+        default: false
     },
-    saldo: {
+    balance: {
         type: Number,
         default: 0
     },
-    planoAtual: {
+    avatar: {
+        type: String, // URL do Cloudinary para a imagem do avatar
+        default: '' // Será 'preto' se não definido, ou uma URL vazia que o frontend interpretará
+    },
+    currentPlan: {
         type: Schema.Types.ObjectId,
         ref: 'Plan',
         default: null
     },
-    dataAtivacaoPlano: {
+    planActivationDate: {
         type: Date,
         default: null
     },
-    videosAssistidosHoje: {
+    videosWatchedToday: {
         type: Number,
         default: 0
     },
-    ultimoResetVideos: {
+    lastVideoWatchDate: {
         type: Date,
-        default: Date.now // Data do último reset para contagem de vídeos diários
+        default: null
     },
-    ganhoDiario: {
-        type: Number,
-        default: 0 // Recompensa diária atual do usuário baseada no plano ativo
-    },
-    referralCode: {
-        type: String,
-        unique: true,
-        required: true
-    },
-    referidoPor: {
+    referredBy: {
         type: Schema.Types.ObjectId,
         ref: 'User',
         default: null
     },
-    emailVerificado: {
-        type: Boolean,
-        default: false
-    },
-    verificationToken: {
+    referralCode: {
         type: String,
-        default: null
+        unique: true,
+        trim: true
     },
     isAdmin: {
         type: Boolean,
         default: false
-    },
-    // Histórico de vídeos assistidos (para acompanhar quais vídeos foram vistos e quando)
-    historicoVideos: [
-        {
-            videoId: {
-                type: Schema.Types.ObjectId,
-                ref: 'Video'
-            },
-            dataAssistido: {
-                type: Date,
-                default: Date.now
-            },
-            recompensaGanhou: {
-                type: Number,
-                default: 0
-            }
-        }
-    ]
-}, { timestamps: true }); // Adiciona createdAt e updatedAt automaticamente
+    }
+}, {
+    timestamps: true // Adiciona createdAt e updatedAt automaticamente
+});
 
-// --- Esquema de Plano (Plan) ---
+// --- Plan Schema ---
 const planSchema = new Schema({
-    nome: {
+    name: {
         type: String,
         required: true,
         unique: true,
         trim: true
     },
-    valor: {
+    cost: {
         type: Number,
         required: true
     },
-    videosPorDia: {
+    dailyReward: {
+        type: Number, // Recompensa por dia
+        required: true
+    },
+    videosPerDay: {
         type: Number,
         required: true
     },
-    duracaoDias: {
-        type: Number,
+    durationDays: {
+        type: Number, // Duração do plano em dias
         required: true
     },
-    recompensaDiaria: { // Recompensa por assistir TODOS os vídeos do dia para este plano
-        type: Number,
-        required: true
-    },
-    recompensaTotalEstimada: { // Valor total que o usuário pode ganhar se assistir todos os vídeos durante a duração do plano
-        type: Number,
+    totalReward: {
+        type: Number, // Recompensa total que o usuário pode ganhar no plano
         required: true
     }
-}, { timestamps: true });
+}, {
+    timestamps: true
+});
 
-// --- Esquema de Vídeo (Video) ---
+// --- Video Schema ---
 const videoSchema = new Schema({
-    titulo: {
+    title: {
         type: String,
         required: true,
         trim: true
     },
-    url: { // URL do vídeo (pode ser do Cloudinary ou um link externo)
-        type: String,
+    videoUrl: {
+        type: String, // URL do Cloudinary ou URL externa do vídeo
         required: true
     },
-    duracao: { // Duração do vídeo em segundos
-        type: Number,
+    duration: {
+        type: Number, // Duração do vídeo em segundos
         required: true
     },
-    ativo: { // Se o vídeo está disponível para ser assistido pelos usuários
+    rewardAmount: {
+        type: Number, // Recompensa por assistir este vídeo
+        required: true
+    },
+    isActive: {
         type: Boolean,
         default: true
     }
-}, { timestamps: true });
+}, {
+    timestamps: true
+});
 
-// --- Esquema de Depósito (Deposit) ---
+// --- Deposit Schema ---
 const depositSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    valor: {
+    amount: {
         type: Number,
         required: true
     },
-    comprovante: { // URL da imagem do comprovante ou texto
-        type: String,
+    paymentMethod: {
+        type: String, // 'M-Pesa' ou 'e-Mola'
+        required: true
+    },
+    proof: {
+        type: String, // URL do Cloudinary para a imagem do comprovante ou texto
         required: true
     },
     status: {
         type: String,
-        enum: ['pendente', 'aprovado', 'rejeitado'],
-        default: 'pendente'
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
     },
-    aprovadoPor: { // Admin que aprovou o depósito
+    transactionId: {
+        type: String, // Opcional: ID da transação no M-Pesa/e-Mola, se aplicável
+        trim: true
+    }
+}, {
+    timestamps: true
+});
+
+// --- Withdrawal Schema ---
+const withdrawalSchema = new Schema({
+    userId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
-        default: null
+        required: true
     },
-    dataAprovacao: {
-        type: Date,
-        default: null
+    amount: {
+        type: Number,
+        required: true
+    },
+    paymentMethod: {
+        type: String, // 'M-Pesa' ou 'e-Mola'
+        required: true
+    },
+    phoneNumber: {
+        type: String, // Número para o qual o dinheiro será enviado
+        required: true,
+        trim: true
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
     }
-}, { timestamps: true });
+}, {
+    timestamps: true
+});
 
-// --- Esquema de Transação (Transaction) ---
+// --- Transaction History Schema ---
 const transactionSchema = new Schema({
     userId: {
         type: Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    tipo: { // Ex: 'deposito', 'compra_plano', 'recompensa_video', 'saque', 'bonus_referencia_plano', 'bonus_referencia_diario'
+    type: {
         type: String,
+        enum: ['deposit', 'withdrawal', 'plan_purchase', 'video_reward', 'referral_plan_bonus', 'referral_daily_bonus'],
         required: true
     },
-    valor: {
+    amount: {
         type: Number,
         required: true
     },
-    status: { // Para saques, por exemplo: 'pendente', 'concluido', 'cancelado'
+    description: {
         type: String,
-        enum: ['concluido', 'pendente', 'cancelado', 'aprovado'], // Ajustar conforme os tipos de transação
-        default: 'concluido' // Para recompensas e compras, assume-se concluído imediatamente
+        required: true
     },
-    referencia: { // Opcional: ID do plano, vídeo, depósito ou saque relacionado
+    relatedId: { // ID do documento relacionado (e.g., depositId, withdrawalId, planId, videoId)
         type: Schema.Types.ObjectId,
-        ref: 'Plan' // Pode ser um ObjectId de Plan, Video, Deposit, etc.
+        default: null
     },
-    descricao: {
+    status: {
         type: String,
-        trim: true
+        enum: ['completed', 'pending', 'failed'], // Para transações que podem ter status (e.g. depósito/levantamento)
+        default: 'completed'
     }
-}, { timestamps: true });
+}, {
+    timestamps: true
+});
+
+// --- Video History Schema (para registrar vídeos assistidos por usuário) ---
+const videoHistorySchema = new Schema({
+    userId: {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    videoId: {
+        type: Schema.Types.ObjectId,
+        ref: 'Video',
+        required: true
+    },
+    watchedAt: {
+        type: Date,
+        default: Date.now
+    },
+    rewardEarned: {
+        type: Number,
+        default: 0
+    }
+}, {
+    timestamps: true
+});
 
 
-// --- Exportar os Modelos ---
+// Exportar os modelos
 module.exports = {
     User: mongoose.model('User', userSchema),
     Plan: mongoose.model('Plan', planSchema),
     Video: mongoose.model('Video', videoSchema),
     Deposit: mongoose.model('Deposit', depositSchema),
-    Transaction: mongoose.model('Transaction', transactionSchema)
+    Withdrawal: mongoose.model('Withdrawal', withdrawalSchema),
+    Transaction: mongoose.model('Transaction', transactionSchema),
+    VideoHistory: mongoose.model('VideoHistory', videoHistorySchema)
 };
