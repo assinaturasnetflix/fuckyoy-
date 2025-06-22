@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - VEED</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        :root {
+            --primary-blue: #007bff;
+            --dark-blue: #0056b3;
+            --red-accent: #dc3545;
+            --green-success: #28a745;
+            --text-dark: #333;
+            --text-light: #f8f9fa;
+            --bg-light: #f8f9fa;
+            --bg-card: #ffffff;
+            --border-color: #e0e0e0;
+            --shadow-light: rgba(0, 0, 0, 0.08);
+            --video-bg: #f0f2f5;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: var(--primary-blue);
+            color: var(--text-light);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .top-bar .logo {
+            font-size: 1.8em;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+        }
+
+        .user-info .balance {
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-right: 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+        .user-info .avatar-container {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #ccc; /* Cor de fundo para avatar padrão */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border: 2px solid var(--text-light);
+        }
+
+        .user-info .avatar-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .user-info .avatar-container i {
+            font-size: 1.5em;
+            color: #666;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 20px auto 80px auto; /* Adicionado margem para a bottom bar */
+        }
+
+        .section-header {
+            font-size: 1.6em;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 25px;
+            border-bottom: 2px solid var(--primary-blue);
+            padding-bottom: 10px;
+            text-align: center;
+        }
+
+        .info-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+
+        .info-card {
+            background-color: var(--bg-card);
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .info-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+        }
+
+        .info-card h3 {
+            color: var(--dark-blue);
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .info-card p {
+            font-size: 1em;
+            color: #555;
+            margin-bottom: 10px;
+        }
+
+        .info-card .value {
+            font-size: 1.8em;
+            font-weight: 700;
+            color: var(--green-success);
+            margin-top: 10px;
+        }
+
+        .info-card .value.plan {
+            color: var(--primary-blue);
+        }
+
+        .video-section {
+            background-color: var(--video-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--shadow-light);
+        }
+
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .video-card {
+            background-color: var(--bg-card);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+        }
+
+        .video-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-card .thumbnail {
+            width: 100%;
+            height: 180px;
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 1.5em;
+            overflow: hidden;
+            position: relative;
+        }
+        .video-card .thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .video-card .thumbnail .play-icon {
+            position: absolute;
+            font-size: 3em;
+            color: rgba(255, 255, 255, 0.8);
+            pointer-events: none;
+            transition: transform 0.2s ease;
+        }
+        .video-card:hover .thumbnail .play-icon {
+            transform: scale(1.1);
+        }
+
+        .video-card .video-info {
+            padding: 15px;
+            text-align: left;
+        }
+
+        .video-card .video-info h4 {
+            font-size: 1.1em;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: var(--dark-blue);
+            font-weight: 600;
+        }
+
+        .video-card .video-info p {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 0;
+        }
+
+        .no-videos {
+            text-align: center;
+            font-size: 1.2em;
+            color: #777;
+            padding: 50px 0;
+        }
+
+        /* Bottom Navigation Bar */
+        .bottom-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--bg-card);
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+            z-index: 1000;
+        }
+
+        .bottom-bar a {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-decoration: none;
+            color: #888;
+            font-size: 0.8em;
+            font-weight: 600;
+            transition: color 0.3s ease;
+            padding: 5px 0;
+            min-width: 60px; /* Para garantir espaçamento uniforme */
+        }
+
+        .bottom-bar a.active {
+            color: var(--primary-blue);
+        }
+
+        .bottom-bar a i {
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: slideInMessage 0.5s forwards;
+        }
+
+        @keyframes slideInMessage {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        /* Modal para Vídeo Player */
+        .video-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 2000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.9); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .video-modal-content {
+            background-color: #000;
+            margin: auto;
+            padding: 0;
+            border: 1px solid #888;
+            width: 90%;
+            max-width: 800px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .video-modal-content video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .video-timer {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .close-modal {
+            color: #aaa;
+            font-size: 30px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            cursor: pointer;
+            z-index: 2001; /* Above timer */
+        }
+        .close-modal:hover,
+        .close-modal:focus {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        /* Estilos para o video.js */
+        .video-js {
+            width: 100% !important;
+            height: auto !important;
+        }
+        /* Remover controles de avanço/retrocesso e fullscreen */
+        .video-js .vjs-progress-control,
+        .video-js .vjs-playback-rate-menu-button,
+        .video-js .vjs-fullscreen-control {
+            display: none !important;
+        }
+        /* Manter play/pause, volume, tempo atual/duração */
+        .video-js .vjs-control-bar {
+            opacity: 1 !important; /* Certifica que a barra de controle é visível */
+        }
+
+
+        /* Placeholder para vídeo sem thumbnail */
+        .video-card .thumbnail.no-thumbnail {
+            background-color: #333; /* Cor escura de fundo */
+            color: white;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            text-align: center;
+        }
+        .video-card .thumbnail.no-thumbnail i {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        .video-card .thumbnail.no-thumbnail span {
+            font-weight: 600;
+        }
+
+        /* Responsividade geral */
+        @media (max-width: 768px) {
+            .top-bar {
+                padding: 10px 15px;
+            }
+            .top-bar .logo {
+                font-size: 1.5em;
+            }
+            .user-info .balance {
+                font-size: 1em;
+                margin-right: 10px;
+            }
+            .user-info .avatar-container {
+                width: 35px;
+                height: 35px;
+            }
+            .main-content {
+                padding: 15px;
+                margin-top: 10px;
+            }
+            .section-header {
+                font-size: 1.4em;
+                margin-bottom: 20px;
+            }
+            .info-cards {
+                grid-template-columns: 1fr; /* Uma coluna em telas menores */
+            }
+            .info-card {
+                padding: 20px;
+            }
+            .info-card h3 {
+                font-size: 1.2em;
+            }
+            .info-card .value {
+                font-size: 1.5em;
+            }
+            .video-grid {
+                grid-template-columns: 1fr; /* Uma coluna em telas menores */
+            }
+            .video-card .thumbnail {
+                height: 160px;
+            }
+            .bottom-bar a {
+                font-size: 0.75em;
+                min-width: unset;
+            }
+            .bottom-bar a i {
+                font-size: 1.3em;
+            }
+        }
+    </style>
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+</head>
+<body>
+    <div class="top-bar">
+        <div class="logo">VEED</div>
+        <div class="user-info">
+            <span class="balance" id="userBalance">0.00 MT</span>
+            <div class="avatar-container" id="userAvatarContainer">
+                <img id="userAvatar" src="" alt="Avatar" style="display: none;">
+                <i id="defaultAvatarIcon" class="fas fa-user-circle"></i>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <h2 class="section-header">Resumo Diário</h2>
+
+        <div class="info-cards">
+            <div class="info-card">
+                <h3>Plano Atual</h3>
+                <p id="currentPlanName">Nenhum Plano Ativo</p>
+                <p>Ganho Diário: <span id="dailyEarning" class="value">0 MT</span></p>
+            </div>
+            <div class="info-card">
+                <h3>Vídeos Vistos Hoje</h3>
+                <p><span id="videosWatchedToday" class="value">0</span> / <span id="dailyVideoLimit">0</span></p>
+                <p class="small-text">Assista para ganhar recompensas!</p>
+            </div>
+            <div class="info-card">
+                <h3>Saldo Atual</h3>
+                <p><span id="currentBalanceCard" class="value">0.00 MT</span></p>
+                <p class="small-text">Disponível para saque ou compra de plano</p>
+            </div>
+        </div>
+
+        <h2 class="section-header">Vídeos Para Você</h2>
+        <div id="dashboardMessage" class="message" style="display: none;"></div>
+
+        <div class="video-section">
+            <div id="videoGrid" class="video-grid">
+                <p class="no-videos" id="noVideosMessage" style="display: none;">Nenhum vídeo disponível no momento. Volte amanhã ou tente recarregar.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="videoModal" class="video-modal">
+        <span class="close-modal">&times;</span>
+        <div class="video-modal-content">
+            <video id="videoPlayer" class="video-js vjs-default-skin" controls preload="auto" width="640" height="264"
+                data-setup='{}'>
+                </video>
+            <div class="video-timer" id="videoTimer"></div>
+        </div>
+    </div>
+
+    <div class="bottom-bar">
+        <a href="/dashboard" class="active">
+            <i class="fas fa-home"></i>
+            <span>Início</span>
+        </a>
+        <a href="/wallet">
+            <i class="fas fa-wallet"></i>
+            <span>Carteira</span>
+        </a>
+        <a href="/referrals">
+            <i class="fas fa-users"></i>
+            <span>Indicar</span>
+        </a>
+        <a href="/profile">
+            <i class="fas fa-user-circle"></i>
+            <span>Perfil</span>
+        </a>
+        <a href="/settings">
+            <i class="fas fa-cog"></i>
+            <span>Config.</span>
+        </a>
+    </div>
+
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script>
+        const backendUrl = '/api'; // Backend servido pelo mesmo domínio
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const userToken = localStorage.getItem('userToken');
+            const userData = JSON.parse(localStorage.getItem('userData'));
+
+            if (!userToken || !userData) {
+                // Se não houver token ou dados, redirecionar para o login
+                window.location.href = '/login';
+                return;
+            }
+
+            // Elementos da Top Bar
+            const userBalanceElement = document.getElementById('userBalance');
+            const userAvatarContainer = document.getElementById('userAvatarContainer');
+            const userAvatarImg = document.getElementById('userAvatar');
+            const defaultAvatarIcon = document.getElementById('defaultAvatarIcon');
+
+            // Elementos das Info Cards
+            const currentPlanName = document.getElementById('currentPlanName');
+            const dailyEarning = document.getElementById('dailyEarning');
+            const videosWatchedToday = document.getElementById('videosWatchedToday');
+            const dailyVideoLimit = document.getElementById('dailyVideoLimit');
+            const currentBalanceCard = document.getElementById('currentBalanceCard');
+            const dashboardMessage = document.getElementById('dashboardMessage');
+
+            // Elementos do Vídeo Player Modal
+            const videoModal = document.getElementById('videoModal');
+            const closeVideoModal = document.querySelector('.close-modal');
+            const videoPlayerElement = document.getElementById('videoPlayer');
+            const videoTimerElement = document.getElementById('videoTimer');
+            let videoPlayerInstance = null; // Para armazenar a instância do video.js player
+            let countdownInterval = null; // Para o temporizador do vídeo
+            let currentVideoDuration = 0; // Duração do vídeo atual
+            let currentVideoId = null; // ID do vídeo atual sendo assistido
+
+
+            // Função para mostrar mensagens
+            function showMessage(type, text, targetElement) {
+                targetElement.textContent = text;
+                targetElement.className = `message ${type}`;
+                targetElement.style.display = 'block';
+                setTimeout(() => {
+                    targetElement.style.display = 'none';
+                }, 5000); // Esconde a mensagem após 5 segundos
+            }
+
+            // Função para carregar dados do usuário e dashboard
+            async function loadDashboardData() {
+                try {
+                    const response = await fetch(`${backendUrl}/me`, {
+                        headers: {
+                            'Authorization': `Bearer ${userToken}`
+                        }
+                    });
+
+                    if (response.status === 401) {
+                        // Token expirado ou inválido, redirecionar para o login
+                        localStorage.clear();
+                        window.location.href = '/login';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao carregar dados do usuário.');
+                    }
+
+                    const user = await response.json();
+
+                    // Atualizar localStorage com os dados mais recentes do usuário
+                    localStorage.setItem('userData', JSON.stringify({
+                        _id: user._id,
+                        nome: user.nome,
+                        email: user.email,
+                        isAdmin: user.isAdmin,
+                        saldo: user.saldo,
+                        avatar: user.avatar,
+                        planoAtual: user.planoAtual // Incluir o plano atual
+                    }));
+
+                    // Atualizar Top Bar
+                    userBalanceElement.textContent = `${user.saldo.toFixed(2)} MT`;
+                    if (user.avatar) {
+                        userAvatarImg.src = user.avatar;
+                        userAvatarImg.style.display = 'block';
+                        defaultAvatarIcon.style.display = 'none';
+                    } else {
+                        userAvatarImg.style.display = 'none';
+                        defaultAvatarIcon.style.display = 'block';
+                    }
+
+                    // Atualizar Info Cards
+                    if (user.planoAtual) {
+                        currentPlanName.textContent = user.planoAtual.nome;
+                        dailyEarning.textContent = `${user.planoAtual.recompensaDiaria} MT`;
+                        dailyVideoLimit.textContent = user.planoAtual.videosPorDia;
+                    } else {
+                        currentPlanName.textContent = 'Nenhum Plano Ativo';
+                        dailyEarning.textContent = '0 MT';
+                        dailyVideoLimit.textContent = '0';
+                    }
+                    videosWatchedToday.textContent = user.videosAssistidosHoje;
+                    currentBalanceCard.textContent = `${user.saldo.toFixed(2)} MT`;
+
+                    // Carregar vídeos diários
+                    await loadDailyVideos();
+
+                } catch (error) {
+                    console.error('Erro ao carregar dados do dashboard:', error);
+                    showMessage('error', 'Não foi possível carregar o dashboard. Tente novamente.', dashboardMessage);
+                    // Em caso de erro grave, talvez redirecionar para o login
+                    // localStorage.clear();
+                    // window.location.href = '/login';
+                }
+            }
+
+            // Função para carregar vídeos diários
+            async function loadDailyVideos() {
+                const videoGrid = document.getElementById('videoGrid');
+                videoGrid.innerHTML = ''; // Limpar vídeos existentes
+                document.getElementById('noVideosMessage').style.display = 'none'; // Esconder mensagem de "nenhum vídeo"
+
+                try {
+                    const response = await fetch(`${backendUrl}/videos`, {
+                        headers: {
+                            'Authorization': `Bearer ${userToken}`
+                        }
+                    });
+
+                    if (response.status === 401) {
+                         // Token expirado ou inválido, redirecionar para o login
+                        localStorage.clear();
+                        window.location.href = '/login';
+                        return;
+                    }
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        // Se não houver plano ativo ou limite excedido, mostrar mensagem apropriada
+                        if (response.status === 400 && (errorData.message.includes('plano ativo') || errorData.message.includes('número máximo'))) {
+                            showMessage('error', errorData.message, dashboardMessage);
+                            document.getElementById('noVideosMessage').textContent = errorData.message;
+                            document.getElementById('noVideosMessage').style.display = 'block';
+                        } else {
+                            throw new Error(errorData.message || 'Falha ao carregar vídeos diários.');
+                        }
+                        return; // Sair da função se houver erro
+                    }
+
+                    const data = await response.json();
+                    const videos = data.videosDisponiveis;
+                    videosWatchedToday.textContent = data.videosAssistidosHoje; // Atualiza a contagem exibida
+                    dailyVideoLimit.textContent = data.limiteDiario; // Atualiza o limite exibido
+                    userBalanceElement.textContent = `${data.saldoAtual.toFixed(2)} MT`; // Atualiza saldo na top bar
+                    currentBalanceCard.textContent = `${data.saldoAtual.toFixed(2)} MT`; // Atualiza saldo no card
+
+                    if (videos.length === 0) {
+                        document.getElementById('noVideosMessage').textContent = 'Nenhum vídeo novo disponível para hoje no momento. Volte amanhã ou tente recarregar.';
+                        document.getElementById('noVideosMessage').style.display = 'block';
+                        return;
+                    }
+
+                    videos.forEach(video => {
+                        const videoCard = document.createElement('div');
+                        videoCard.className = 'video-card';
+                        videoCard.dataset.videoId = video._id;
+                        videoCard.dataset.videoUrl = video.url;
+                        videoCard.dataset.videoDuration = video.duracao;
+                        videoCard.dataset.videoTitle = video.titulo;
+
+                        // Tenta criar uma thumbnail a partir da URL do vídeo se for do Cloudinary
+                        let thumbnailUrl = '';
+                        if (video.url.includes('cloudinary.com')) {
+                            // Ex: https://res.cloudinary.com/dje6f5k5u/video/upload/v1234567890/my_video.mp4
+                            // Para thumbnail: https://res.cloudinary.com/dje6f5k5u/video/upload/v1234567890/my_video.jpg
+                            const parts = video.url.split('/upload/');
+                            if (parts.length > 1) {
+                                thumbnailUrl = `${parts[0]}/upload/c_fill,h_180,w_320,q_auto:eco/f_auto/${parts[1].replace(/\.(mp4|mov|avi|webm)$/, '.jpg')}`;
+                            }
+                        }
+
+                        videoCard.innerHTML = `
+                            <div class="thumbnail ${!thumbnailUrl ? 'no-thumbnail' : ''}">
+                                ${thumbnailUrl ? `<img src="${thumbnailUrl}" alt="Thumbnail do Vídeo">` : '<i class="fas fa-play-circle"></i><span>Carregando Vídeo...</span>'}
+                                <i class="fas fa-play-circle play-icon"></i>
+                            </div>
+                            <div class="video-info">
+                                <h4>${video.titulo}</h4>
+                                <p>Duração: ${formatDuration(video.duracao)}</p>
+                            </div>
+                        `;
+                        videoGrid.appendChild(videoCard);
+
+                        videoCard.addEventListener('click', () => openVideoModal(video.url, video.duracao, video._id, video.titulo));
+                    });
+
+                } catch (error) {
+                    console.error('Erro ao carregar vídeos diários:', error);
+                    showMessage('error', error.message || 'Não foi possível carregar os vídeos. Tente novamente.', dashboardMessage);
+                }
+            }
+
+            // Função para formatar a duração em minutos:segundos
+            function formatDuration(seconds) {
+                const minutes = Math.floor(seconds / 60);
+                const remainingSeconds = Math.floor(seconds % 60);
+                return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
+            }
+
+            // Funções do Modal do Vídeo
+            function openVideoModal(url, duration, videoId, title) {
+                currentVideoId = videoId; // Armazena o ID do vídeo atual
+                currentVideoDuration = duration; // Armazena a duração do vídeo
+
+                // Reinicializa o player se já existir
+                if (videoPlayerInstance) {
+                    videoPlayerInstance.dispose(); // Destrói a instância anterior
+                }
+
+                // Cria uma nova instância do video.js player
+                videoPlayerInstance = videojs(videoPlayerElement, {
+                    controls: true,
+                    autoplay: true,
+                    preload: 'auto',
+                    sources: [{ src: url, type: 'video/mp4' }] // Assumindo mp4, pode precisar de verificação de tipo real
+                });
+
+                // Remover controles indesejados
+                videoPlayerInstance.on('ready', function() {
+                    this.controlBar.progressControl.hide(); // Barra de progresso
+                    this.controlBar.playbackRateMenuButton.hide(); // Velocidade de reprodução
+                    this.controlBar.fullscreenToggle.hide(); // Botão de tela cheia
+                });
+
+                videoPlayerInstance.on('pause', () => {
+                     // Se o vídeo foi pausado antes de terminar, consideramos que o usuário saiu
+                    console.log('Vídeo pausado antes de terminar. Recompensa não será creditada.');
+                    resetVideoPlay();
+                    showMessage('error', 'Você saiu do vídeo! Assista novamente para ganhar a recompensa.', dashboardMessage);
+                });
+
+                videoPlayerInstance.on('ended', async () => {
+                    clearInterval(countdownInterval); // Para o timer
+                    console.log('Vídeo concluído. Tentando creditar recompensa...');
+                    try {
+                        const response = await fetch(`${backendUrl}/videos/${currentVideoId}/watch`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${userToken}`
+                            }
+                        });
+                        const data = await response.json();
+                        if (response.ok) {
+                            showMessage('success', data.message || 'Recompensa creditada com sucesso!', dashboardMessage);
+                            // Atualizar saldo e contagem de vídeos no dashboard
+                            userBalanceElement.textContent = `${data.saldoAtual.toFixed(2)} MT`;
+                            currentBalanceCard.textContent = `${data.saldoAtual.toFixed(2)} MT`;
+                            videosWatchedToday.textContent = data.videosAssistidosHoje;
+                            // Recarregar os vídeos disponíveis (para remover o que acabou de ser assistido)
+                            await loadDailyVideos();
+                        } else {
+                            showMessage('error', data.message || 'Erro ao creditar recompensa.', dashboardMessage);
+                        }
+                    } catch (error) {
+                        console.error('Erro ao creditar recompensa:', error);
+                        showMessage('error', 'Erro ao creditar recompensa. Tente novamente.', dashboardMessage);
+                    } finally {
+                        closeVideoModalAndReset();
+                    }
+                });
+
+                // Inicia o contador regressivo
+                startCountdown(currentVideoDuration);
+
+                videoModal.style.display = 'flex'; // Exibe o modal
+            }
+
+            function startCountdown(duration) {
+                let timeLeft = duration;
+                videoTimerElement.textContent = formatDuration(timeLeft);
+
+                if (countdownInterval) clearInterval(countdownInterval); // Limpa qualquer timer anterior
+
+                countdownInterval = setInterval(() => {
+                    timeLeft--;
+                    videoTimerElement.textContent = formatDuration(timeLeft);
+                    if (timeLeft <= 0) {
+                        clearInterval(countdownInterval);
+                        videoTimerElement.textContent = 'Concluído!';
+                    }
+                }, 1000);
+            }
+
+            function resetVideoPlay() {
+                if (videoPlayerInstance) {
+                    videoPlayerInstance.currentTime(0); // Volta o vídeo para o início
+                    videoPlayerInstance.pause(); // Pausa o vídeo
+                }
+                clearInterval(countdownInterval); // Para o timer
+                videoTimerElement.textContent = ''; // Limpa o texto do timer
+            }
+
+            function closeVideoModalAndReset() {
+                if (videoPlayerInstance) {
+                    videoPlayerInstance.pause();
+                    videoPlayerInstance.src({ src: '', type: 'video/mp4' }); // Limpa o source do player
+                    videoPlayerInstance.load(); // Recarrega o player
+                }
+                clearInterval(countdownInterval);
+                videoModal.style.display = 'none';
+                currentVideoId = null; // Limpa o ID do vídeo atual
+            }
+
+            // Fechar modal ao clicar no X
+            closeVideoModal.addEventListener('click', () => {
+                // Ao fechar o modal, se o vídeo não terminou, reseta.
+                if (videoPlayerInstance && !videoPlayerInstance.ended()) {
+                    resetVideoPlay();
+                    showMessage('error', 'Você saiu do vídeo! Assista novamente para ganhar a recompensa.', dashboardMessage);
+                }
+                closeVideoModalAndReset();
+            });
+
+            // Fechar modal ao clicar fora (opcional, pode ser irritante)
+            // window.addEventListener('click', (event) => {
+            //     if (event.target == videoModal) {
+            //         closeVideoModal();
+            //     }
+            // });
+
+            // Carregar dados quando a página é carregada
+            loadDashboardData();
+        });
+    </script>
+</body>
+</html>

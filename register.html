@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registrar - VEED</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-blue: #007bff;
+            --dark-blue: #0056b3;
+            --red-accent: #dc3545;
+            --text-dark: #333;
+            --text-light: #f8f9fa;
+            --bg-light: #f8f9fa;
+            --bg-dark-form: #ffffff;
+            --border-color: #ced4da;
+            --shadow-light: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #e0f7fa, #007bff); /* Leve gradiente azul */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--text-dark);
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: var(--bg-dark-form);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px var(--shadow-light);
+            width: 100%;
+            max-width: 450px;
+            text-align: center;
+            box-sizing: border-box;
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            color: var(--primary-blue);
+            margin-bottom: 30px;
+            font-weight: 700;
+            font-size: 2em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+
+        .input-group input[type="text"],
+        .input-group input[type="email"],
+        .input-group input[type="password"] {
+            width: calc(100% - 20px);
+            padding: 12px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .input-group input:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+            outline: none;
+        }
+
+        .btn-register {
+            background-color: var(--primary-blue);
+            color: white;
+            padding: 14px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1em;
+            font-weight: 600;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .btn-register:hover {
+            background-color: var(--dark-blue);
+            transform: translateY(-2px);
+        }
+
+        .btn-register:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .message {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: 600;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: slideInMessage 0.5s forwards;
+        }
+
+        @keyframes slideInMessage {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .login-link {
+            margin-top: 25px;
+            font-size: 0.95em;
+            color: var(--text-dark);
+        }
+
+        .login-link a {
+            color: var(--primary-blue);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s ease;
+        }
+
+        .login-link a:hover {
+            color: var(--dark-blue);
+            text-decoration: underline;
+        }
+
+        /* Responsividade */
+        @media (max-width: 600px) {
+            .container {
+                margin: 20px;
+                padding: 30px 20px;
+            }
+            h2 {
+                font-size: 1.8em;
+            }
+            .btn-register {
+                padding: 12px 20px;
+                font-size: 1em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Criar Conta VEED</h2>
+        <form id="registerForm">
+            <div class="input-group">
+                <label for="name">Nome Completo:</label>
+                <input type="text" id="name" name="nome" required autocomplete="name">
+            </div>
+            <div class="input-group">
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required autocomplete="email">
+            </div>
+            <div class="input-group">
+                <label for="password">Senha:</label>
+                <input type="password" id="password" name="senha" required autocomplete="new-password">
+            </div>
+            <div class="input-group">
+                <label for="referralCode">Código de Referência (opcional):</label>
+                <input type="text" id="referralCode" name="referidoPorCode" autocomplete="off">
+            </div>
+            <button type="submit" class="btn-register">Registrar</button>
+        </form>
+        <div id="message" class="message" style="display: none;"></div>
+        <p class="login-link">Já tem uma conta? <a href="/login">Faça Login aqui</a></p>
+    </div>
+
+    <script>
+        // Correção aqui: Usar um caminho relativo ou window.location.origin
+        const backendUrl = '/api'; // O navegador automaticamente anexa o domínio atual (e.g., https://fuckyoy.onrender.com)
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const registerForm = document.getElementById('registerForm');
+            const messageDiv = document.getElementById('message');
+            const referralCodeInput = document.getElementById('referralCode');
+
+            // Preencher o campo de código de referência se houver na URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const refCode = urlParams.get('ref');
+            if (refCode) {
+                referralCodeInput.value = refCode;
+            }
+
+            registerForm.addEventListener('submit', async (event) => {
+                event.preventDefault(); // Impede o envio padrão do formulário
+
+                // Obter dados do formulário
+                const nome = document.getElementById('name').value;
+                const email = document.getElementById('email').value;
+                const senha = document.getElementById('password').value;
+                const referidoPorCode = referralCodeInput.value;
+
+                // Desabilitar botão e mostrar loading (opcional)
+                const registerButton = registerForm.querySelector('.btn-register');
+                registerButton.disabled = true;
+                registerButton.textContent = 'Registrando...';
+
+                messageDiv.style.display = 'none'; // Esconde mensagens anteriores
+
+                try {
+                    const response = await fetch(`${backendUrl}/register`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ nome, email, senha, referidoPorCode })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        showMessage('success', data.message || 'Registro bem-sucedido! Verifique seu email para ativar a conta.');
+                        registerForm.reset(); // Limpa o formulário
+                        // Opcional: Redirecionar para a página de login após alguns segundos
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 3000);
+                    } else {
+                        showMessage('error', data.message || 'Erro ao registrar. Tente novamente.');
+                    }
+                } catch (error) {
+                    console.error('Erro na requisição de registro:', error);
+                    // O erro agora não deve ser CORS se a rota estiver no mesmo domínio
+                    showMessage('error', 'Erro de conexão ou servidor. Por favor, tente novamente mais tarde.');
+                } finally {
+                    registerButton.disabled = false;
+                    registerButton.textContent = 'Registrar';
+                }
+            });
+
+            function showMessage(type, text) {
+                messageDiv.textContent = text;
+                messageDiv.className = `message ${type}`;
+                messageDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>
