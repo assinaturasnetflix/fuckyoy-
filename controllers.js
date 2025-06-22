@@ -1,11 +1,11 @@
 // controllers.js
 const { User, Plan, Video, Deposit, Withdrawal, Transaction, WatchedVideo } = require('./models');
-const { jwt, bcrypt, nodemailer, moment, cloudinary, transporter, upload, JWT_SECRET } = require('./server'); // Importar do server.js
+const { jwt, bcrypt, nodemailer, cloudinary, transporter, upload, JWT_SECRET } = require('./server'); // Remover moment daqui
+const moment = require('moment-timezone'); // Importar moment-timezone diretamente aqui
 const { generateReferralCode, sendVerificationEmail, sendPasswordResetEmail, generateRandomPassword, generateToken } = require('./utils'); // Funções auxiliares
 
 // Configurar timezone para Maputo
 moment.tz.setDefault("Africa/Maputo");
-
 // --- Funções Auxiliares (podem ser movidas para utils.js depois de prontas) ---
 
 // Função para verificar se um usuário está autenticado
