@@ -1,7 +1,7 @@
 {
   "name": "veed-backend",
   "version": "1.0.0",
-  "description": "Backend para a plataforma de investimento VEED através do consumo de vídeos.",
+  "description": "Backend da plataforma de investimento VEED através do consumo de vídeos.",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,11 +12,13 @@
     "express",
     "mongodb",
     "veed",
+    "video",
     "investimento",
-    "video"
+    "mpesa",
+    "emola"
   ],
-  "author": "Seu Nome/Empresa",
-  "license": "MIT",
+  "author": "Seu Nome",
+  "license": "ISC",
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cloudinary": "^1.41.0",
