@@ -3,7 +3,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const cors = require('cors'); // Importar o pacote cors
+const cors = require('cors');
+const routes = require('./routes'); // Importar as rotas
+const path = require('path'); // Necessário para lidar com caminhos de arquivos
 
 dotenv.config(); // Carrega as variáveis de ambiente do arquivo .env
 
@@ -25,11 +27,23 @@ mongoose.connect(process.env.MONGODB_URI)
         console.error('Erro ao conectar ao MongoDB Atlas:', error.message);
     });
 
-// Rotas (serão definidas no arquivo routes.js)
-// Por enquanto, apenas um placeholder para garantir que o servidor está funcionando
+// Use as rotas da API sob o prefixo /api
+app.use('/api', routes);
+
+// Rota de fallback para a raiz do servidor
+// Esta rota é para o caso de alguém acessar https://fuckyoy.onrender.com/ diretamente
 app.get('/', (req, res) => {
-    res.send('Bem-vindo à API do VEED!');
+    // Redireciona para o frontend (assumindo que index.html será a página inicial)
+    // No futuro, quando tiver o frontend, você pode servir o index.html aqui.
+    // Por enquanto, uma mensagem ou um pequeno HTML de "Bem-vindo" é o suficiente.
+    res.send('Bem-vindo à plataforma VEED! Acesse /api para a API.');
 });
+
+// Este middleware deve ser o último para lidar com rotas não encontradas
+app.use((req, res, next) => {
+    res.status(404).json({ message: `Rota ${req.originalUrl} não encontrada.` });
+});
+
 
 // Inicia o servidor
 app.listen(PORT, () => {
